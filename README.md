@@ -11,3 +11,5 @@
 アイコンとテーマカラーはspecs/BRAND.md、事前のCI確認範囲はdocs/CI_PREPARATION.mdを参照する。
 
 [接続から終了までの画面遷移と操作仕様](specs/SCREEN_FLOW.md)には、全状態の表示・操作・復帰先と代表画面の画像をまとめています。
+
+[キャラクター案内・翻訳・分析・振り返りの画面設計](specs/ASSISTANCE_FLOW.md)を参照してください。
