@@ -1,0 +1,19 @@
+name: Preparation documents
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  documents:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check preparation documents only
+        run: |
+          test -s AGENTS.md
+          test -s docs/PREPARATION.md
+          test -s specs/PRODUCT.md
+          echo 'Preparation documents exist. No application was built or tested.'
