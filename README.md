@@ -7,3 +7,5 @@
 まずAGENTS.mdとdocs/PREPARATION.mdを読む。要件はspecs/PRODUCT.md、開発運用はdocs/TEAM.md、開始後の配布構成はdocs/DELIVERY.mdを参照する。
 
 ワークフローは手動の準備資料確認のみ。アプリのビルド・配布・Slack通知は接続していない。ここにある設計は実装済み機能を意味しない。
+
+アイコンとテーマカラーはspecs/BRAND.md、事前のCI確認範囲はdocs/CI_PREPARATION.mdを参照する。
