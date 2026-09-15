@@ -5,6 +5,12 @@ import Foundation
         func ticket(host: String = "192.168.1.2", port: UInt16 = 1234, key: Data = Data(repeating: 1, count: 32), version: Int = 1, ttl: Double = 300) -> PairingTicket {
             PairingTicket(version: version, host: host, port: port, key: key, name: "学生のMac", expires: now.addingTimeInterval(ttl))
         }
+        let stable = ticket()
+        let firstText = stable.text
+        for _ in 0..<1000 {
+            precondition(stable.text == firstText, "Unchanged QR must have identical bytes on redraw")
+            precondition(PairingTicket.parse(firstText, now: now)?.text == firstText)
+        }
         precondition(PairingTicket.parse(ticket().text, now: now) == ticket())
         for ip in ["10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.0.2", "169.254.1.2"] {
             precondition(PairingTicket.parse(ticket(host: ip).text, now: now) != nil)
@@ -20,6 +26,6 @@ import Foundation
         precondition(PairingTicket.safeDisplayName(String(repeating: "学", count: 40)).utf8.count <= 63)
         precondition(PairingTicket.safeDisplayName(String(repeating: "👩‍💻", count: 40)).utf8.count <= 63)
         precondition(!PairingTicket.safeDisplayName("").isEmpty)
-        print("Pairing ticket: 29 validation checks passed")
+        print("Pairing ticket: 29 validation checks and 1000 stable QR roundtrips passed")
     }
 }
