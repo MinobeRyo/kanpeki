@@ -12,6 +12,8 @@ struct PresentationState: Codable, Equatable {
     var canControl = false
     var isSharing = false
     var pointerSessionID: UUID? = nil
+    var frameIdentity: SlideFrameIdentity? = nil
+    var frameReady: Bool? = nil
     var message = "Macで共有するウィンドウを選択してください"
     var timer: PresentationTimerSnapshot? = nil
 
@@ -29,6 +31,7 @@ struct WireMessage: Codable {
     var frameSequence: UInt64? = nil
     var timerCommand: PresentationTimerCommand? = nil
     var pointer: SlidePointerUpdate? = nil
+    var frameIdentity: SlideFrameIdentity? = nil
 }
 
 enum WireCodec {
@@ -38,21 +41,29 @@ enum WireCodec {
         guard data.count <= maxMessageBytes,
               let value = try? JSONDecoder().decode(WireMessage.self, from: data),
               value.version == 1, ["control", "state", "frameAck", "timerControl", "pointer"].contains(value.kind),
-              value.state?.timer?.isValid != false else { return nil }
+              value.state?.timer?.isValid != false,
+              value.state?.frameIdentity?.isValid != false,
+              value.frameIdentity?.isValid != false else { return nil }
         return value
     }
-    static func frame(_ jpeg: Data, sequence: UInt64) -> Data? {
-        guard !jpeg.isEmpty, jpeg.count <= maxFrameBytes else { return nil }
-        var output = Data([0x4b, 0x46, 1])
-        for shift in stride(from: 56, through: 0, by: -8) { output.append(UInt8((sequence >> shift) & 255)) }
+    static func frame(_ jpeg: Data, sequence: UInt64, identity: SlideFrameIdentity) -> Data? {
+        guard !jpeg.isEmpty, jpeg.count <= maxFrameBytes, identity.isValid, sequence > 0,
+              let header = try? JSONEncoder().encode(SlideFrameHeader(sequence: sequence, identity: identity)),
+              header.count <= 1024 else { return nil }
+        var output = Data([0x4b, 0x46, 2, UInt8(header.count >> 8), UInt8(header.count & 255)])
+        output.append(header)
         output.append(jpeg)
         return output
     }
-    static func readFrame(_ packet: Data) -> (UInt64, Data)? {
-        guard packet.count > 11, packet.count <= maxFrameBytes + 11,
-              Array(packet.prefix(3)) == [0x4b, 0x46, 1] else { return nil }
-        let sequence = packet.dropFirst(3).prefix(8).reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
-        return (sequence, Data(packet.dropFirst(11)))
+    static func readFrame(_ packet: Data) -> SlideFramePacket? {
+        guard packet.count > 5, packet.count <= maxFrameBytes + 1029,
+              Array(packet.prefix(3)) == [0x4b, 0x46, 2] else { return nil }
+        let count = packet.dropFirst(3).prefix(2).reduce(0) { ($0 << 8) | Int($1) }
+        guard count > 0, count <= 1024, packet.count > 5 + count,
+              packet.count - 5 - count <= maxFrameBytes,
+              let header = try? JSONDecoder().decode(SlideFrameHeader.self, from: packet.dropFirst(5).prefix(count)),
+              header.sequence > 0, header.identity.isValid else { return nil }
+        return SlideFramePacket(header: header, jpeg: Data(packet.dropFirst(5 + count)))
     }
 }
 

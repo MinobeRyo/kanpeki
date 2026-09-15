@@ -17,6 +17,9 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     @Published var message = "「ウィンドウを探す」で画面収録を許可してください"
     var onJPEG: ((Data) -> Void)?
     var onStopped: (() -> Void)?
+    var usesObservedSnapshots = false
+    private var snapshotFilter: SCContentFilter?
+    private var snapshotConfiguration: SCStreamConfiguration?
     private var stream: SCStream?
     private let queue = DispatchQueue(label: "kanpeki.capture", qos: .userInitiated)
     private let context = CIContext(options: [.cacheIntermediates: false])
@@ -51,6 +54,8 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
             self.stream = stream
             try await stream.startCapture()
             sharing = true
+            snapshotFilter = filter
+            snapshotConfiguration = config
             message = "共有中 · 最大5fps / JPEG · 音声なし"
         } catch {
             self.stream = nil
@@ -61,9 +66,24 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     @MainActor func stop() async {
         if let stream { try? await stream.stopCapture() }
         stream = nil
+        snapshotFilter = nil
+        snapshotConfiguration = nil
         sharing = false
         image = nil
         message = "共有停止"
+    }
+
+    /// A fresh request; never re-labels an idle stream buffer after a page observation.
+    @MainActor func snapshot() async throws -> Data? {
+        guard sharing, let stream, let filter = snapshotFilter, let config = snapshotConfiguration else { return nil }
+        let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+        guard self.stream === stream, sharing else { return nil }
+        let rep = NSBitmapImageRep(cgImage: image)
+        for quality in [0.55, 0.25, 0.1] {
+            if let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: quality]),
+               !jpeg.isEmpty, jpeg.count <= WireCodec.maxFrameBytes { return jpeg }
+        }
+        return nil
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
@@ -77,6 +97,7 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer buffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard !usesObservedSnapshots else { return }
         guard type == .screen, buffer.isValid,
               let attachments = CMSampleBufferGetSampleAttachmentsArray(buffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
               let status = attachments.first?[.status] as? Int else { return }

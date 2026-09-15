@@ -47,6 +47,8 @@ struct MacScreen: View {
                         RoundedRectangle(cornerRadius: 20).fill(paper)
                         if let image = capture.image {
                             Image(nsImage: image).resizable().scaledToFit()
+                        } else if capture.sharing {
+                            Label("スライド画像を更新中", systemImage: "arrow.triangle.2.circlepath")
                         } else {
                             VStack(spacing: 16) {
                                 Image("BrandMascot").resizable().scaledToFit().frame(width: 100, height: 100)
@@ -60,10 +62,10 @@ struct MacScreen: View {
                     HStack {
                         Button { model.move(.previous) } label: { Image(systemName: "chevron.left").frame(width: 36, height: 30) }
                             .accessibilityLabel("前のスライド")
-                            .disabled(!model.state.canControl || model.state.slideIndex == 1)
+                            .disabled(model.state.frameReady != true || !model.state.canControl || model.state.slideIndex == 1)
                         Button { model.move(.next) } label: { Image(systemName: "chevron.right").frame(width: 36, height: 30) }
                             .accessibilityLabel("次のスライド")
-                            .disabled(!model.state.canControl || model.state.slideIndex == model.state.totalSlides)
+                            .disabled(model.state.frameReady != true || !model.state.canControl || model.state.slideIndex == model.state.totalSlides)
                         Spacer()
                         Text(capture.sharing ? "共有中" : "共有前").font(.caption)
                     }

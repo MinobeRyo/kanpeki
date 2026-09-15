@@ -9,6 +9,7 @@ import Foundation
     }
     static func main() throws {
         try testSlidePointer()
+        try testSlideFrames()
         let folder = URL(fileURLWithPath: CommandLine.arguments[1])
         let deck = try PPTXImporter.load(folder.appendingPathComponent("reordered.pptx"))
         expect(deck.slides.map(\.id) == [400, 256, 900], "presentation.xml defines order; filenames do not")
@@ -30,11 +31,12 @@ import Foundation
             fatalError("ZIP wildcard accepted")
         } catch { count += 1; print("PASS: reject ZIP wildcard") }
         let payload = Data([0xff, 0xd8, 0xff, 0xd9])
-        let packet = WireCodec.frame(payload, sequence: 0x1020304050607080)!
+        let identity = SlideFrameIdentity(sessionID: UUID(), revision: 1, slideID: 42, slideIndex: 1)
+        let packet = WireCodec.frame(payload, sequence: 0x1020304050607080, identity: identity)!
         let decoded = WireCodec.readFrame(packet)!
-        expect(decoded.0 == 0x1020304050607080 && decoded.1 == payload, "frame sequence and payload roundtrip")
+        expect(decoded.header.sequence == 0x1020304050607080 && decoded.jpeg == payload && decoded.header.identity == identity, "frame sequence, identity and payload roundtrip")
         expect(WireCodec.readFrame(Data([0x4b, 0x46])) == nil, "reject truncated frame")
-        expect(WireCodec.frame(Data(repeating: 0, count: WireCodec.maxFrameBytes + 1), sequence: 1) == nil, "bound transmitted image size")
+        expect(WireCodec.frame(Data(repeating: 0, count: WireCodec.maxFrameBytes + 1), sequence: 1, identity: identity) == nil, "bound transmitted image size")
         expect(WireCodec.decode(Data("{\"version\":99,\"kind\":\"control\"}".utf8)) == nil, "reject incompatible protocol")
         let control = WireMessage(kind: "control", action: .next)
         let received = WireCodec.decode(try JSONEncoder().encode(control))
