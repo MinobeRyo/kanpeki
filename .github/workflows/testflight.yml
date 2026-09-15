@@ -108,7 +108,9 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: fastlane ios beta
+        run: |
+          ruby Tests/test_signing.rb
+          fastlane ios beta
       - name: Assign iPhone to internal group
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
