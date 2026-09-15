@@ -48,6 +48,8 @@ public struct PresentationResultAssociation {
         summary.observableSeconds = max(0, summary.observableSeconds - baseline.observableSeconds)
         summary.missingSeconds = max(0, summary.missingSeconds - baseline.missingSeconds)
         summary.nodCandidateSeconds = max(0, summary.nodCandidateSeconds - baseline.nodCandidateSeconds)
+        // Capture bands have not been clipped to the observed presentation start.
+        summary.timeBands = []
         result.update(id: cameraID, status: current.status, summary: summary)
         return result
     }
