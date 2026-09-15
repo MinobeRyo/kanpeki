@@ -22,6 +22,10 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
 "$test_dir/powerpoint-tests"
 echo "Test artifacts: $test_dir"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/MacPresentationStart.swift" \
+  "$project_dir/Tests/MacPresentationStartTests.swift" -o "$test_dir/mac-start-tests"
+"$test_dir/mac-start-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
   "$project_dir/Tests/AudioIdentityTests.swift" -o "$test_dir/audio-identity-tests"
 "$test_dir/audio-identity-tests"
