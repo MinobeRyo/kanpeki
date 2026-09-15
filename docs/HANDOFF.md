@@ -16,18 +16,18 @@
 
 | 対象 | 正本 | 状態 |
 |---|---|---|
-| ロゴと配色 | [BRAND](../specs/BRAND.md)、[原本](../assets/brand/app-icon.png) | 保存済み。Xcode組込みは未実施 |
-| 画面遷移 | [仕様](../specs/SCREEN_FLOW.md)、[画像](../assets/design/screen-flow/iphone-states.png) | 設計済み。通信・操作未検証 |
-| 案内・分析 | [仕様](../specs/ASSISTANCE_FLOW.md)、[画像](../assets/design/assistance/screens.png) | 設計済み。モデル・性能未確定 |
+| ロゴと配色 | [BRAND](../specs/BRAND.md)、[原本](../assets/brand/app-icon.png) | Xcode組込み済み（#24）。配布版はSTATUSで確認 |
+| 画面遷移 | [仕様](../specs/SCREEN_FLOW.md)、[画像](../assets/design/screen-flow/iphone-states.png) | 基本通信・手動操作は部分実装済み。全遷移の実機受入は別 |
+| 案内・分析 | [仕様](../specs/ASSISTANCE_FLOW.md)、[画像](../assets/design/assistance/screens.png) | カメラ・音声・終了結果は部分実装済み。翻訳・統一結果・実精度は残件 |
 | iPhone発表中 | [画像](../assets/design/device-size/iphone-live.png) | 画像モック |
 | iPhone接続 | [画像](../assets/design/device-size/iphone-connect.png) | 画像モック |
 | Mac準備 | [画像](../assets/design/device-size/mac-preparation.png) | 画像モック |
 | 過去の配置案 | [旧デザイン](../assets/design/archive/README.md) | 非採用案。最新仕様に優先しない |
 | 壁打ちの手順 | [skill](../.agents/skills/presentation-dialogue/SKILL.md) | 共通手順あり。各自の利用環境で実行 |
 | チーム・worktree | [TEAM](TEAM.md) | 1タスク・1担当・1branch・1worktree |
-| CI/CD | [DELIVERY](DELIVERY.md)、[確認範囲](CI_PREPARATION.md) | 移植済み。ネイティブCI/CDは有効化前 |
+| CI/CD | [DELIVERY](DELIVERY.md)、[確認範囲](CI_PREPARATION.md) | 両アプリ内部TestFlight CD成功記録あり。最新配布/全員利用は別 |
 | Slack | [共有構成](SLACK.md) | マージ通知・スレッド・進捗通知は実配信確認済み。AI返信は別途接続 |
-| 技術上の引き継ぎ | [ARCHITECTURE](../specs/ARCHITECTURE.md) | 実装前の構成と接続契約案 |
+| 技術上の引き継ぎ | [ARCHITECTURE](../specs/ARCHITECTURE.md) | 目標境界と部分実装。STATUSと個別仕様を参照 |
 
 ## これまでの検討で決まったこと
 
@@ -38,7 +38,11 @@
 - 準備時の翻訳・原稿分析と、本番時の音声・カメラ観測、終了後の振り返りを画面設計に含めた。
 - App Store向け実装、ローカルLLM、画面取得、通信、カメラ、振動の実現性は新アプリで別途確認する。
 
-## 検証で確認した範囲
+## 現在の入口と過去の検証
+
+現在の実装・残件・未マージPR・両アプリ配布成功の根拠は[STATUS](STATUS.md)。以下は移植直後の履歴で、現在もCI/CDが未接続という意味ではない。
+
+### 移植直後に確認した範囲
 
 新リポジトリでは[準備資料チェック](https://github.com/MinobeRyo/kanpeki/actions/runs/34898809481)が成功した。これは資料の存在確認で、アプリのビルド・署名・配布成功ではない。
 別環境でApple APIからアプリと外部TestFlightグループを読み取る接続確認を行ったが、新リポジトリのGitHub Actionsからの署名・アップロード・外部配布は未確認。旧アプリの動作報告を新アプリの実績として転記しない。

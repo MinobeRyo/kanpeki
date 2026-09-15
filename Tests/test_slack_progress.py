@@ -2,6 +2,7 @@ import copy
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from slack_progress import payload, TEAM
 MEMBER = sorted(TEAM)[0]
@@ -38,6 +39,12 @@ class ProgressTests(unittest.TestCase):
         self.assertLessEqual(len(p['blocks'][2]['text']['text'].splitlines()),3)
         self.assertNotIn('四行目',p['blocks'][2]['text']['text'])
         self.assertTrue(p['blocks'][3]['elements'][0]['url'].endswith('#issuecomment-123'))
+    def test_legacy_public_links_are_not_offered(self):
+        with patch.dict('os.environ', {'TESTFLIGHT_TESTER_URL': 'https://testflight.apple.com/join/oldPhone', 'MAC_TESTER_URL': 'https://testflight.apple.com/join/oldMac'}):
+            actions=payload(self.e,'C123')['blocks'][3]['elements']
+        self.assertEqual(len(actions),2)
+        self.assertTrue(actions[1]['url'].endswith('/docs/TESTFLIGHT_TEAM.md'))
+        self.assertFalse(any('/join/' in a['url'] for a in actions))
     def test_invalid_channel(self):
         with self.assertRaises(ValueError):payload(self.e,'U123')
 if __name__=='__main__':unittest.main()

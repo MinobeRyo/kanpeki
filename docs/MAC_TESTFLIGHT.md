@@ -1,23 +1,17 @@
 # Mac版TestFlight
 
-Macアプリは `カンペき Mac`（Apple ID `6811774996`、Bundle ID `jp.kanpeki.prototype.mac`）。iPhone版とは別のTestFlight登録です。配布状態は[App Store Connect](https://appstoreconnect.apple.com/apps/6811774996/testflight)と[Issue #22](https://github.com/MinobeRyo/kanpeki/issues/22)で確認します。
+Macアプリは「カンペき Mac」（Apple ID `6811774996`、Bundle ID `jp.kanpeki.prototype.mac`）。iPhone版とは別アプリ。主なチーム確認経路は内部TestFlight。[現在の配布根拠](STATUS.md)、[Issue #28](https://github.com/MinobeRyo/kanpeki/issues/28)、[App Store Connect](https://appstoreconnect.apple.com/apps/6811774996/testflight)を参照する。
 
-外部グループ「カンペき開発チーム」は招待専用です。公開リンクは無効。4人の招待メールをMacで開きTestFlightへ参加します。Apple審査・ビルド処理の完了前はインストールできません。
+内部テスターはAppleユーザー招待とTestFlight招待を受諾する。全員共通の公開参加URLはない。外部グループや公開リンクの登録だけで内部ビルドを利用できるとは扱わない。
 
 ## CD
 
-main → 必須CI（通常Mac・Sandbox Release・iPhone・コア）→ Mac TestFlight CD → Apple Distribution署名 + Mac App Store profile → Installer Distribution署名PKG → Appleアップロード → 処理待ち → 外部ベータ審査へ提出。
+共通TestFlight CDがcore/Mac/iPhoneを検証し、MacをApple Distribution + Mac App Store profileで署名、Installer DistributionでPKG署名、Appleへアップロード後に内部割当する。旧Mac TestFlight CDは退役案内。設定は[CD](CD.md)と[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)を参照。
 
-repository variable `MAC_TESTFLIGHT_ENABLED=true` で有効。既存 `testflight` environmentのApple APIとApple Distribution Secretsを再利用し、次を追加します。
+両アプリ0.1.0 (1018.1.0)のApple VALID / IN_BETA_TESTING確認記録があるが、最新mainの配布・全員のインストールとは区別する。Mac公証DMGは補助経路。
 
-- `MAC_APPSTORE_PROFILE_BASE64`
-- `MAC_INSTALLER_P12_BASE64`
-- `MAC_INSTALLER_P12_PASSWORD`
+## Sandboxで実機確認する項目
 
-秘密値はログ・リポジトリへ書きません。署名鍵は一時キーチェーンに読み込み、後処理で削除します。既存のDeveloper ID/DMG配布も継続します。
+画面収録、PowerPoint Apple Events操作、同一ネットワーク接続、PPTXノート、ログ保存を実機で確認する。署名なしビルド成功をこの受入成功にしない。PowerPointのApple Events一時例外は対象を限定し、審査上の承認はAppleが判断する。
 
-## Sandboxで確認する項目
-
-画面収録とPowerPoint操作、同一ネットワークでiPhoneとの接続、PPTXノート読み込み、ログ保存を実機で確認します。PowerPoint操作には同アプリだけを対象とするApple Events一時例外を申請します。この例外の承認はAppleが判断します。PPTXは選択時のアクセス権でアプリの一時領域へコピーして読み取り、終了時に削除します。
-
-審査メモにはPowerPointの必要性・検証手順・例外の理由を記載。審査連絡先の個人情報はAppleだけに登録します。本工程はTestFlight外部ベータ審査であり、一般公開のMac App Store審査とは別です。
+PPTXは選択したアクセス権で一時領域へコピーして読む。権限の再要求・再起動・資料取り直しの実挙動も確認する。外部ベータ/一般公開審査は内部配布とは別工程で、審査連絡先の個人情報はAppleだけへ登録する。

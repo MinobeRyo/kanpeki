@@ -1,11 +1,13 @@
 import SwiftUI
 import KanpekiCamera
+import KanpekiAudioHost
 
 @main struct KanpekiMacApp: App {
     @StateObject private var model = MacModel()
     @State private var showPreparation = true
     @State private var showScreenReview = false
     @AppStorage("macNotesSize") private var notesSize = 0
+    @StateObject private var audio = AudioHostModel()
     var body: some Scene {
         WindowGroup("カンペき · Mac") {
             MacScreen(model: model, capture: model.capture, link: model.link,
@@ -25,10 +27,14 @@ import KanpekiCamera
                     Button("原稿を小さく") { notesSize = max(0, min(2, notesSize) - 1) }.keyboardShortcut("-")
                 }
             }
+        Window("カンペき · 音声分析", id: "audio-analysis") {
+            AudioHostPanel(model: audio).frame(minWidth: 680, minHeight: 620)
+        }.defaultSize(width: 760, height: 780)
     }
 }
 
 struct MacScreen: View {
+    @Environment(\.openWindow) private var openWindow
     @ObservedObject var model: MacModel
     @ObservedObject var capture: WindowCapture
     @ObservedObject var link: PeerLink
@@ -42,6 +48,7 @@ struct MacScreen: View {
     @State private var adjustment: MacTimeDraft?
     @State private var windowDraft: MacPreparationDraft?
     @State private var connectionDraft: MacPreparationDraft?
+    @State private var showQR = false
     @StateObject private var camera = CameraController()
     @State private var presentationResult = PresentationResultAssociation()
     @State private var showCamera = false
@@ -63,13 +70,15 @@ struct MacScreen: View {
                 Spacer()
                 Label("iPhone：\(link.connectedName ?? "未接続")", systemImage: "iphone")
                     .font(.callout)
-                if presenting && !showPreparation {
-                    Button("発表を終了") { endingSession = model.state.timer?.sessionID }.disabled(model.timerFinishing)
+                Button("音声分析", systemImage: "waveform") { openWindow(id: "audio-analysis") }
+                Button("QRでつなぐ", systemImage: "qrcode") { showQR = true }.disabled(link.connectedName != nil)
+                Menu("その他") {
+                    Button("準備パネルを表示／非表示") { showPreparation.toggle() }
+                    Button("接続の詳細") { showDetails = true }
+                    if presenting {
+                        Button("発表を終了") { endingSession = model.state.timer?.sessionID }.disabled(model.timerFinishing)
+                    }
                 }
-                Button { showPreparation.toggle() } label: { Image(systemName: "sidebar.right") }
-                    .help("準備パネルを表示／非表示")
-                Button { showDetails = true } label: { Image(systemName: "ellipsis").frame(width: 36, height: 36) }
-                    .accessibilityLabel("接続の詳細")
             }
             HStack(alignment: .top, spacing: 24) {
                 VStack(alignment: .leading, spacing: 16) {
@@ -134,6 +143,8 @@ struct MacScreen: View {
             .onChange(of: capture.message) { _, message in
                 if capture.needsScreenPermission { model.errorMessage = message }
             }
+            .task { if !link.running { link.start() } }
+            .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
                 VStack {
@@ -194,10 +205,10 @@ struct MacScreen: View {
                 }
                 Button("続ける", role: .cancel) { endingSession = nil }
             }
-            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitationName != nil }, set: { if !$0 { link.respondToInvitation(accept: false) } })) {
-                Button("許可") { link.respondToInvitation(accept: true) }
-                Button("拒否", role: .cancel) { link.respondToInvitation(accept: false) }
-            } message: { Text("\(link.invitationName ?? "iPhone") に共有画面と原稿を送ります。自分の端末名か確認してください。") }
+            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitation != nil && !showQR }, set: { _ in }), presenting: link.invitation) { invitation in
+                Button("許可") { link.respondToInvitation(accept: true, invitationID: invitation.id) }
+                Button("拒否", role: .cancel) { link.respondToInvitation(accept: false, invitationID: invitation.id) }
+            } message: { invitation in Text("\(invitation.name) に共有画面と原稿を送ります。自分の端末から接続を操作したか確認してください。") }
             .alert("確認が必要です", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
                 if capture.needsScreenPermission { Button("システム設定を開く") { capture.openScreenPermissionSettings() } }
                 Button("OK") { model.errorMessage = nil }
