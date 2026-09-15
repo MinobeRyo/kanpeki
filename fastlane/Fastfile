@@ -1,5 +1,6 @@
 require "shellwords"
 require "json"
+require_relative "signing"
 
 def kanpeki_api_key
   app_store_connect_api_key(
@@ -54,13 +55,7 @@ platform :ios do
     version = get_version_number(xcodeproj: File.join(root,"Kanpeki.xcodeproj"), target: "KanpekiPhone")
     # Scope provisioning to the app. Global xcargs also affect Swift Package
     # resource bundles, which cannot accept an app provisioning profile.
-    update_code_signing_settings(
-      use_automatic_signing: false,
-      path: File.join(root, "Kanpeki.xcodeproj"),
-      targets: ["KanpekiPhone"], build_configurations: ["Release"],
-      team_id: "XYJX89KRDM", code_sign_identity: "Apple Distribution",
-      profile_uuid: ENV.fetch("PROFILE_UUID")
-    )
+    configure_phone_signing(File.join(root, "Kanpeki.xcodeproj"), ENV.fetch("PROFILE_UUID"))
     args = "CURRENT_PROJECT_VERSION=#{Shellwords.escape(number)}"
     ipa = build_app(
       project: File.join(root,"Kanpeki.xcodeproj"), scheme: "KanpekiPhone",
