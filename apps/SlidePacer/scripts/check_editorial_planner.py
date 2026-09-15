@@ -21,6 +21,13 @@ func expectThrows(_ block: () throws -> Any) {
 '''
 runner = '''
 let tests = SlidePacerTests()
+try tests.quotedQualificationsRemainExactBalancedSource()
+try tests.bodyQualificationPreservesMultilineQuoteWithoutTable()
+tests.ambiguousTrailingNumbersAndTimesAreNotMetadata()
+try tests.partialEnumerationCompletesOnlyItsSourceGroup()
+try tests.unselectedEnumerationDoesNotForceWholeSource()
+tests.incompleteEnumerationIsRejectedWithoutInventingItems()
+try tests.negativeEvidenceQualificationsSurviveWithoutUnrelatedSentences()
 try tests.usesBudgetWithVariedDurationsAndPreservesPageMeaning()
 try tests.shorterBudgetChangesContentAndKeepsImportanceForSkippedPages()
 tests.rejectsInvalidOrMissingSummaries()
@@ -59,7 +66,7 @@ try tests.keepsQuotedQuestionsAndNestedBracketsInOneSourcePoint()
 try tests.permitsCompleteEnumerationsAndRejectsExcessiveSelection()
 try tests.numericComparisonAllowsAdditionalConditionSource()
 try tests.nativeMCPRejectsStaleIncompleteAndUnknownSelections()
-print("38 regression tests passed")
+print("45 regression tests passed")
 '''
 build = root / '.build'
 build.mkdir(exist_ok=True)

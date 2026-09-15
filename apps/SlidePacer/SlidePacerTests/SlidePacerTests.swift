@@ -3,6 +3,76 @@ import Testing
 @testable import SlidePacer
 
 struct SlidePacerTests {
+    @Test func quotedQualificationsRemainExactBalancedSource() throws {
+        for quote in ["「未検証。利用禁止。」という注意があります。", "『担当者は「未検証。利用禁止。」と言う』という注意です。", "\"未検証。利用禁止。\"という注意です。"] {
+            let source = SlideInput(body: "", notes: "速度は改善しました。" + quote + "補足の紹介です。")
+            let points = SourceExtractor.points(source, index: 2)
+            let brief = try SourceExtractor.brief(ExtractiveSelection(coreIDs: ["s2n1"], detailIDs: [], role: "evidence", priority: 5), points: points, roleHint: nil, source: source)
+            #expect(brief.core == "速度は改善しました。\n" + quote)
+            #expect(brief.omit == "補足の紹介です。")
+            #expect(!brief.core.contains("補足の紹介"))
+        }
+    }
+
+    @Test func bodyQualificationPreservesMultilineQuoteWithoutTable() throws {
+        let quote = "「未検証。\n利用禁止。」という注意があります。"
+        let source = SlideInput(body: "表の補足値123\n" + quote, notes: "測定結果を示します。")
+        let points = SourceExtractor.points(source, index: 2)
+        let brief = try SourceExtractor.brief(ExtractiveSelection(coreIDs: ["s2n1"], detailIDs: [], role: "evidence", priority: 5), points: points, roleHint: nil, source: source)
+        #expect(brief.core.contains(quote))
+        #expect(!brief.core.contains("補足値123"))
+    }
+
+    @Test func ambiguousTrailingNumbersAndTimesAreNotMetadata() {
+        for notes in ["試行回数\n2", "所要時間\n2:50", "2", "比率\n1:20", "差分\n-2", "成功率\n20%"] {
+            let points = SourceExtractor.points(SlideInput(body: "", notes: notes), index: 2)
+            #expect(points.map(\.text).joined(separator: "\n") == notes)
+        }
+        #expect(AnalysisInputValidation.problem(slides: [SlideInput(body: "", notes: "1")], minutes: 1) == nil)
+    }
+
+    @Test func partialEnumerationCompletesOnlyItsSourceGroup() throws {
+        let source = SlideInput(body: "本文の別説明です。", notes: "理由は3つあります。第一は量です。第二は関係です。第三は鮮度です。無関係な補足です。")
+        let points = SourceExtractor.points(source, index: 2)
+        let brief = try SourceExtractor.brief(ExtractiveSelection(coreIDs: ["s2n1", "s2n2"], detailIDs: ["s2n3"], role: "problem", priority: 4), points: points, roleHint: nil, source: source)
+        for item in points.prefix(4) { #expect(brief.core.contains(item.text)) }
+        #expect(brief.detail.isEmpty)
+        #expect(!brief.core.contains("無関係"))
+        #expect(!brief.core.contains("本文の別説明"))
+        let short = try EditorialPlanner.assemble([PageBrief(slideIndex: 1, brief: brief)], slideCount: 1, budget: 15)
+        #expect(short.slides[0].talkingPoints.contains("第三は鮮度です。"))
+    }
+
+    @Test func unselectedEnumerationDoesNotForceWholeSource() throws {
+        let source = SlideInput(body: "", notes: "結論を紹介します。理由は2つあります。第一は量です。第二は鮮度です。")
+        let points = SourceExtractor.points(source, index: 2)
+        let brief = try SourceExtractor.brief(ExtractiveSelection(coreIDs: ["s2n1"], detailIDs: [], role: "conclusion", priority: 4), points: points, roleHint: nil)
+        #expect(brief.core == "結論を紹介します。")
+        #expect(brief.omit.contains("第一は量です。"))
+    }
+
+    @Test func incompleteEnumerationIsRejectedWithoutInventingItems() {
+        for notes in ["理由は3つあります。第一は量です。第二は鮮度です。", "理由は2つあります。第一は量です。第三は鮮度です。"] {
+            let points = SourceExtractor.points(SlideInput(body: "第三は別本文です。", notes: notes), index: 2)
+            #expect(throws: (any Error).self) {
+                try SourceExtractor.brief(ExtractiveSelection(coreIDs: ["s2n1"], detailIDs: [], role: "problem", priority: 4), points: points, roleHint: nil)
+            }
+        }
+    }
+
+    @Test func negativeEvidenceQualificationsSurviveWithoutUnrelatedSentences() throws {
+        for condition in ["因果関係は確認していません。", "安全性は実証されていません。", "再現性は保証できません。", "これは確定結果ではありません。"] {
+            for bodyOnly in [false, true] {
+                let source = SlideInput(body: bodyOnly ? condition : "", notes: "予測値は改善しました。" + (bodyOnly ? "" : condition) + "次はデモの紹介です。")
+                let points = SourceExtractor.points(source, index: 2)
+                let brief = try SourceExtractor.brief(ExtractiveSelection(coreIDs: ["s2n1"], detailIDs: [], role: "evidence", priority: 5), points: points, roleHint: nil, source: source)
+                #expect(brief.core.contains(condition))
+                #expect(!brief.omit.contains(condition))
+                #expect(!brief.core.contains("次はデモ"))
+            }
+        }
+    }
+
     @Test func nativeMCPRejectsStaleIncompleteAndUnknownSelections() throws {
         let requestID = UUID()
         let request = MCPAnalysisRequest(schemaVersion: 1, requestID: requestID, status: "pending", updatedAt: 0, title: "Synthetic", totalSeconds: 60, goal: "", audience: "", instructions: "", pages: (1...3).map { index in
@@ -105,7 +175,7 @@ struct SlidePacerTests {
         let slide = SlideInput(body: "送信は人が行う。", notes: "開始位置を変えます。読む順番は変えません。\n2:50\n1")
         let points = SourceExtractor.points(slide, index: 1)
         #expect(points.contains { $0.id.contains("b") && $0.text.contains("送信は人") })
-        #expect(!points.contains { $0.text.contains("2:50") })
+        #expect(points.contains { $0.text.contains("2:50") }) // An untyped time value may be real source data.
         let choice = ExtractiveSelection(coreIDs: ["s1n1", "s1n2"], detailIDs: ["s1b1"], role: "mechanism", priority: 4)
         let brief = try SourceExtractor.brief(choice, points: points, roleHint: nil)
         #expect(brief.core.contains("開始位置を変えます。"))
@@ -339,7 +409,7 @@ struct SlidePacerTests {
     }
 
     @Test func analysisPreflightRejectsEmptyPagesBeforeGeneration() {
-        let pages = [SlideInput(body: "主張", notes: ""), SlideInput(body: "  ", notes: "\n2\n")]
+        let pages = [SlideInput(body: "主張", notes: ""), SlideInput(body: "  ", notes: "\n \n")]
         #expect(AnalysisInputValidation.problem(slides: pages, minutes: 10)?.contains("スライド2") == true)
         #expect(AnalysisInputValidation.problem(slides: pages, minutes: 10, requireContent: false) == nil)
         #expect(AnalysisInputValidation.problem(slides: [], minutes: 10) != nil)
