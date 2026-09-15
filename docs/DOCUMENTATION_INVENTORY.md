@@ -79,6 +79,7 @@
 | [infrastructure/template/infrastructure/SETUP.md](../infrastructure/template/infrastructure/SETUP.md) | テンプレート維持 | 別repoの生成前初期状態。本repoの未実装という意味ではない |
 | [infrastructure/template/specs/FEATURE_TEMPLATE.md](../infrastructure/template/specs/FEATURE_TEMPLATE.md) | テンプレート維持 | 別repoの生成前初期状態。本repoの未実装という意味ではない |
 | [integrations/slack/README.md](../integrations/slack/README.md) | 調査・維持 | 限定範囲を確認。個別仕様・手順は維持 |
+| [specs/AI_COACHING.md](../specs/AI_COACHING.md) | 設計追加（2026-09-15） | 改善提案の目的・入力・具体例・取得状態・追加実装と品質確認を整理。#82 |
 | [specs/ARCHITECTURE.md](../specs/ARCHITECTURE.md) | 現状更新 | main/未マージ/実機/配布の区別・操作・参照を修正 |
 | [specs/ASSISTANCE_FLOW.md](../specs/ASSISTANCE_FLOW.md) | 現状更新 | main/未マージ/実機/配布の区別・操作・参照を修正 |
 | [specs/BRAND.md](../specs/BRAND.md) | 調査・維持 | 限定範囲を確認。個別仕様・手順は維持 |
