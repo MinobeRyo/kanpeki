@@ -101,6 +101,7 @@ struct PhoneScreen: View {
     @State private var showScreenReview = false
     @State private var reviewAfterDetails = false
     @StateObject private var camera = CameraController()
+    @State private var presentationResult = PresentationResultAssociation()
     @State private var showCamera = false
     @StateObject private var notifications = PresentationNotificationPresenter()
     @Environment(\.scenePhase) private var cameraScenePhase
@@ -207,6 +208,7 @@ struct PhoneScreen: View {
                                 if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)") }
                             }
                             Section("発表時間") {
+                                PresentationResultsButton(association: presentationResult, camera: camera)
                                 PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
                                     connected: link.connectedName != nil, canStart: model.state.isSharing,
                                     send: { model.timerAction($0, duration: $1) })
@@ -237,6 +239,8 @@ struct PhoneScreen: View {
             }
         }
         .onDisappear { camera.stop(); model.sendPointer(nil) }
+        .modifier(PresentationResultsObserver(snapshot: model.state.timer, connected: link.connectedName != nil,
+            camera: camera, association: $presentationResult))
         .onChange(of: model.state.timer?.phase) { _, phase in
             if phase == .ended { camera.stop() }
         }
