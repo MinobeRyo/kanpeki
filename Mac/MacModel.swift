@@ -24,13 +24,18 @@ import UniformTypeIdentifiers
     private var sharedWindow: CaptureWindow?
     private var lastObservedID: Int?
     private var lastObservedPath: String?
-    private var latestJPEG: Data?
+    private var frameSessionID = UUID()
+    private var frameRevision: UInt64 = 0
+    private var snapshotRequests = SlideCaptureRequests()
+    private var snapshotTask: Task<Void, Never>?
+    private var lastSnapshotAt: TimeInterval?
+    private var sharingAttemptID = UUID()
     private var heartbeat: Timer?
     private let pointerOverlay = SlidePointerOverlay()
     private var pointerReceiver = SlidePointerReceiver()
 
     init() {
-        capture.onJPEG = { [weak self] data in self?.latestJPEG = data; self?.link.sendFrame(data) }
+        capture.usesObservedSnapshots = true
         capture.onStopped = { [weak self] in
             guard let self else { return }
             self.disableControl()
@@ -42,15 +47,16 @@ import UniformTypeIdentifiers
             guard let self else { return }
             self.requests = RequestDeduplicator()
             self.resetPointer()
+            self.invalidateFrames(newSession: true)
             if connected {
                 self.publishState()
-                if self.capture.sharing, let jpeg = self.latestJPEG { self.link.sendFrame(jpeg) }
+                if self.monitoring { self.pollPosition() } else { self.requestSnapshot() }
             }
         }
         link.onMessage = { [weak self] message in
             if message.kind == "pointer", let self, let update = message.pointer,
                self.pointerReceiver.accept(update, sessionID: self.state.pointerSessionID) {
-                if let point = update.point, self.capture.sharing, self.state.canControl, self.state.allowsSlideInteraction,
+                if let point = update.point, self.capture.sharing, self.state.canControl, self.state.frameReady == true, self.state.allowsSlideInteraction,
                    self.link.connectedName != nil, let windowID = self.sharedWindow?.id {
                     self.pointerOverlay.show(point, windowID: windowID)
                 } else { self.pointerOverlay.clear() }
@@ -62,10 +68,19 @@ import UniformTypeIdentifiers
                 return
             }
             guard message.kind == "control", let action = message.action else { return }
-            if action == .refresh { self.publishState() } else { self.move(action) }
+            if action == .refresh { self.publishState() }
+            else if message.frameIdentity == self.state.frameIdentity, message.frameIdentity != nil { self.move(action) }
         }
         heartbeat = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.publishState() }
+            Task { @MainActor in
+                if let self, self.state.frameReady == true,
+                   self.lastSnapshotAt.map({ TimerClock.now - $0 >= 3 }) ?? true {
+                    self.invalidateFrames()
+                    self.state.message = "画像更新を待っています。共有状態を確認してください"
+                }
+                self?.publishState()
+                if self?.monitoring == false { self?.requestSnapshot() }
+            }
         }
         publishState()
     }
@@ -73,23 +88,30 @@ import UniformTypeIdentifiers
     func startSharing() async {
         guard !timerFinishing else { return }
         guard let window = capture.windows.first(where: { $0.id == selectedWindowID }) else { return }
+        let attempt = UUID()
+        sharingAttemptID = attempt
         disableControl()
-        latestJPEG = nil
         sharedWindow = window
         state = PresentationState()
         resetPointer()
+        invalidateFrames(newSession: true)
         state.title = window.window.owningApplication?.applicationName ?? "画面共有"
         await capture.start(window: window)
+        guard sharingAttemptID == attempt else { return }
         state.isSharing = capture.sharing
         state.message = window.isPowerPoint ? "プレビューを確認後、PowerPoint操作を有効にしてください" : "画面表示のみ対応。操作・原稿連携はPowerPointで利用できます"
         publishState()
+        requestSnapshot()
     }
 
     func stopSharing() async {
+        let attempt = UUID()
+        sharingAttemptID = attempt
         disableControl()
+        invalidateFrames(newSession: true)
         await capture.stop()
+        guard sharingAttemptID == attempt else { return }
         sharedWindow = nil
-        latestJPEG = nil
         state = PresentationState()
         state.message = "Macが共有を停止しました"
         publishState()
@@ -119,6 +141,7 @@ import UniformTypeIdentifiers
         state.slideID = nil
         state.notes = ""
         state.notesStatus = "PowerPointとの同期停止中"
+        invalidateFrames()
         publishState()
     }
 
@@ -141,13 +164,17 @@ import UniformTypeIdentifiers
                     state.notesStatus = slide.notes.isEmpty ? "このスライドの発表者ノートは空です" : "保存済みpptxから取得した原稿（編集後は再取込）"
                 } else { state.notesStatus = "表示中の資料とpptxが一致しません。保存後に同じファイルを再取込してください" }
             } else { state.notesStatus = "発表者ノートを表示するにはpptxを読み込んでください" }
-            if lastObservedID != position.id || lastObservedPath != position.path {
+            if state.frameIdentity?.slideID != position.id || state.frameIdentity?.slideIndex != position.index || lastObservedPath != position.path {
                 resetPointer()
+                invalidateFrames()
+            }
+            if lastObservedID != position.id || lastObservedPath != position.path {
                 events.append(SlideObservation(sessionID: sessionID, observedAt: Date(), elapsedMs: Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1000), presentation: position.title, slideID: position.id, slideIndex: position.index, timingSource: "PowerPoint polling 800ms; observed time, not exact transition time"))
                 lastObservedID = position.id
                 lastObservedPath = position.path
             }
             publishState()
+            requestSnapshot(observed: position)
         } catch {
             disableControl()
             state.message = error.localizedDescription
@@ -157,15 +184,20 @@ import UniformTypeIdentifiers
     }
 
     func move(_ action: RemoteAction) {
-        guard state.canControl, state.allowsSlideInteraction, monitoring, capture.sharing else { return }
+        guard state.canControl, state.frameReady == true, state.allowsSlideInteraction, monitoring, capture.sharing else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastMoveAt > 0.25 else { return }
         lastMoveAt = now
         do {
             // Read before each action; never increment an assumed page number.
             let current = try bridge.readPosition()
+            guard current.id == state.frameIdentity?.slideID, current.index == state.frameIdentity?.slideIndex,
+                  current.path == lastObservedPath else { pollPosition(); return }
             if action == .next && current.index >= current.count { return }
             if action == .previous && current.index <= 1 { return }
+            invalidateFrames()
+            resetPointer()
+            publishState()
             try bridge.move(action)
             pollPosition()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.pollPosition() }
@@ -214,6 +246,62 @@ import UniformTypeIdentifiers
             encoder.dateEncodingStrategy = .iso8601
             try encoder.encode(events).write(to: url, options: .atomic)
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func invalidateFrames(newSession: Bool = false) {
+        if newSession {
+            frameSessionID = UUID(); frameRevision = 0
+            snapshotTask?.cancel(); snapshotTask = nil
+            snapshotRequests.invalidate()
+        }
+        frameRevision &+= 1
+        state.frameIdentity = SlideFrameIdentity(sessionID: frameSessionID, revision: frameRevision,
+            slideID: state.slideID, slideIndex: state.slideIndex)
+        state.frameReady = false
+        lastSnapshotAt = nil
+        capture.image = nil
+        pointerOverlay.clear()
+    }
+
+    private func requestSnapshot(observed: SlidePosition? = nil) {
+        guard capture.sharing, let identity = state.frameIdentity else { return }
+        guard monitoring == (observed != nil) else { return }
+        guard let requestID = snapshotRequests.begin() else { return }
+        let lease = SlideCaptureLease(identity: identity, beganAt: TimerClock.now)
+        snapshotTask = Task {
+            defer { if snapshotRequests.finish(requestID) { snapshotTask = nil } }
+            do {
+                let jpeg = try await capture.snapshot()
+                guard !Task.isCancelled, snapshotRequests.activeID == requestID,
+                      capture.sharing, state.frameIdentity == identity,
+                      monitoring == (observed != nil) else { return }
+                guard let jpeg, lease.accepts(current: state.frameIdentity, now: TimerClock.now) else {
+                    invalidateFrames()
+                    publishState()
+                    return
+                }
+                if let observed {
+                    let after = try bridge.readPosition()
+                    guard after.path == observed.path, after.id == observed.id,
+                          after.index == observed.index, after.count == observed.count else {
+                        invalidateFrames()
+                        pollPosition()
+                        return
+                    }
+                }
+                capture.image = NSImage(data: jpeg)
+                state.frameReady = true
+                lastSnapshotAt = TimerClock.now
+                capture.message = monitoring ? "ページ観測に合わせて画像更新 · JPEG · 音声なし" : "共有画像更新 · JPEG · 音声なし"
+                publishState()
+                link.sendFrame(jpeg, identity: identity)
+            } catch {
+                guard !Task.isCancelled, snapshotRequests.activeID == requestID, state.frameIdentity == identity else { return }
+                invalidateFrames()
+                state.message = "画像更新を待っています。共有状態を確認してください"
+                publishState()
+            }
+        }
     }
 
     private func resetPointer() {

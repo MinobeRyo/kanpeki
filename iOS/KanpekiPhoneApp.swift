@@ -13,23 +13,29 @@ import Combine
     @Published private(set) var timerReceivedAt: TimeInterval?
     private var timerReceiver = PresentationTimerReceiver()
     private var pointerSequence: UInt64 = 0
+    private var frameReceiver = SlideFrameReceiver()
+    private var frameReceivedAt: TimeInterval?
+    private var stateReceivedAt: TimeInterval?
+    var hasFreshSlide: Bool {
+        guard frameReceiver.matches(state), let frameReceivedAt, let stateReceivedAt else { return false }
+        return (0..<3).contains(TimerClock.now - frameReceivedAt) && (0..<3).contains(TimerClock.now - stateReceivedAt)
+    }
 
     func sendPointer(_ point: SlidePointerPoint?) {
         guard link.connectedName != nil, let sessionID = state.pointerSessionID else { return }
         if point != nil {
-            guard state.canControl, state.allowsSlideInteraction, state.isSharing,
-                  let lastStateDate, Date().timeIntervalSince(lastStateDate) < 3,
-                  let lastFrameDate, Date().timeIntervalSince(lastFrameDate) < 3 else { return }
+            guard state.canControl, state.allowsSlideInteraction, hasFreshSlide else { return }
         }
         pointerSequence &+= 1
         link.send(WireMessage(kind: "pointer", pointer: SlidePointerUpdate(sessionID: sessionID, sequence: pointerSequence, point: point)), reliably: point == nil)
     }
 
     init() {
-        link.onFrame = { [weak self] data in
-            guard let image = UIImage(data: data), let self else { return }
+        link.onFrame = { [weak self] frame in
+            guard let self, let image = UIImage(data: frame.jpeg), self.frameReceiver.accept(frame, state: self.state) else { return }
             self.image = image
             self.lastFrameDate = Date()
+            self.frameReceivedAt = TimerClock.now
         }
         link.onMessage = { [weak self] message in
             guard message.kind == "state", let state = message.state, let self else { return }
@@ -37,7 +43,9 @@ import Combine
             self.state = state
             self.timerReceivedAt = state.timer == nil ? nil : TimerClock.now
             self.lastStateDate = Date()
-            if !state.isSharing { self.image = nil; self.lastFrameDate = nil }
+            self.stateReceivedAt = TimerClock.now
+            self.frameReceiver.update(state: state)
+            if !self.frameReceiver.matches(state) { self.image = nil; self.lastFrameDate = nil; self.frameReceivedAt = nil }
         }
         link.onConnection = { [weak self] connected in
             guard let self else { return }
@@ -46,16 +54,18 @@ import Combine
             self.lastStateDate = nil
             self.timerReceivedAt = nil
             self.timerReceiver = PresentationTimerReceiver()
+            self.frameReceiver = SlideFrameReceiver()
+            self.frameReceivedAt = nil
+            self.stateReceivedAt = nil
             self.state = PresentationState()
             if connected { self.link.send(WireMessage(kind: "control", action: .refresh)) }
         }
     }
     func move(_ action: RemoteAction) {
-        guard link.connectedName != nil, state.canControl, state.allowsSlideInteraction, state.isSharing,
-              let lastStateDate, Date().timeIntervalSince(lastStateDate) < 3,
+        guard link.connectedName != nil, state.canControl, state.allowsSlideInteraction, hasFreshSlide,
               Date().timeIntervalSince(lastTapDate) >= 0.3 else { return }
         lastTapDate = Date()
-        link.send(WireMessage(kind: "control", action: action))
+        link.send(WireMessage(kind: "control", action: action, frameIdentity: state.frameIdentity))
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
     func stop() {
@@ -66,6 +76,9 @@ import Combine
         lastStateDate = nil
         timerReceivedAt = nil
         timerReceiver = PresentationTimerReceiver()
+        frameReceiver = SlideFrameReceiver()
+        frameReceivedAt = nil
+        stateReceivedAt = nil
         state = PresentationState()
     }
 
@@ -180,16 +193,15 @@ struct PhoneScreen: View {
                 }
                 if link.connectedName != nil {
                     TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                        let fresh = model.lastStateDate.map { context.date.timeIntervalSince($0) < 3 } ?? false
-                        let frameFresh = model.lastFrameDate.map { context.date.timeIntervalSince($0) < 3 } ?? false
+                        let fresh = model.hasFreshSlide
                         VStack(spacing: 8) {
-                            if !fresh || !frameFresh {
+                            if !fresh {
                                 Label("共有画面の更新を待っています", systemImage: "exclamationmark.triangle")
                                     .font(.caption)
                             }
                             Text(model.state.slideIndex.map { "\($0) / \(model.state.totalSlides)" } ?? "— / —")
                                 .font(.callout.monospacedDigit())
-                            slide(fresh: fresh && frameFresh)
+                            slide(fresh: fresh)
                         }
                     }
                 }
@@ -322,7 +334,7 @@ struct PhoneScreen: View {
                 if let image = model.image {
                     Image(uiImage: image).resizable().scaledToFit()
                 } else {
-                    Label("Macで共有を開始", systemImage: "rectangle.on.rectangle").font(.callout)
+                    Label(model.state.isSharing ? "スライド画像を更新中" : "Macで共有を開始", systemImage: "rectangle.on.rectangle").font(.callout)
                 }
             }.clipShape(RoundedRectangle(cornerRadius: 14))
                 .contentShape(Rectangle())
