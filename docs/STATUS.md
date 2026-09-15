@@ -15,7 +15,7 @@
 | 時間・通知 | Mac正本の開始/停止/再開/終了、期限1回通知、入力→確認→適用。[タイマー](../specs/PRESENTATION_TIMER.md)、[通知](../specs/PRESENTATION_NOTIFICATIONS.md)、[段階入力](../specs/STEPWISE_SETUP.md) | 実端末振動・背景復帰 #11/#18。音声通知は未接続 #41 |
 | カメラ | 任意開始、対象/前後選択、顔向き/うなずき候補、未計測、UUID保護、端末内集計・時間帯。[PR #59](https://github.com/MinobeRyo/kanpeki/pull/59)、[PR #62](https://github.com/MinobeRyo/kanpeki/pull/62)、[仕様](../specs/CAMERA_ANALYSIS.md) | 笑顔判定・実会場精度/熱/長時間 #14。生映像保存・端末間合算は範囲外 |
 | 発表結果 | Mac確定の実測時間＋同発表に関連付いた当端末カメラ。[PR #51](https://github.com/MinobeRyo/kanpeki/pull/51)、[仕様](RESULTS_DEVELOPMENT.md) | 共通結果への音声・改善候補・統一時系列・実UI削除 #13/#17 |
-| iPhone音声 | 任意録音、発表/録音UUID、終了/切断停止、手動送信、返却ID/数値検証。候補章選択・保持録音再生。[PR #60](https://github.com/MinobeRyo/kanpeki/pull/60)、[音声](AUDIO_CAPTURE.md)、[聞き直し](../specs/FILLER_CHAPTERS.md) | mainはPythonサーバー別起動。VAD #40、連続送信 #41、時計/スライド履歴 #17/#38、実機精度 #39 |
+| iPhone音声 | 任意録音、発表/録音UUID、終了/切断停止、手動送信、返却ID/数値検証。候補章選択・保持録音再生。[PR #60](https://github.com/MinobeRyo/kanpeki/pull/60)、[音声](AUDIO_CAPTURE.md)、[聞き直し](../specs/FILLER_CHAPTERS.md) | Mac音声ホストは本PR #72で追加（下記）。VAD #40、連続送信 #41、時計/スライド履歴 #17/#38、実機精度 #39 |
 | 原稿要約・時間配分 | 別アプリSlidePacer、原文選択・配分・Ollama/FoundationModelsの実験。[README](../experiments/SlidePacer/README.md) | 本体への事前結果適用・iPhone表示 #34/#15。実資料品質 #56/#68 |
 
 ## 未マージPR（mainの完成機能に含めない）
@@ -24,7 +24,6 @@
 |---|---|---|
 | [#58](https://github.com/MinobeRyo/kanpeki/pull/58) `1283343` | 資料MCP実験＋発表全体の音声/カメラ根拠集約・返却・Mac/iPhone振り返り | [push報告](https://github.com/MinobeRyo/kanpeki/issues/33#issuecomment-5674648100)済み。事前資料分析のiPhone適用とは別経路。実ChatGPT新ツール返却・実機・配布は未検証 |
 | [#67](https://github.com/MinobeRyo/kanpeki/pull/67) `97f4e3f` | Mac準備カード・確認付き開始・共有復旧・案内保存 #61 | CI成功報告。実PowerPoint/権限/狭幅/操作一巡は未検証。「最大3操作」全達成ではない |
-| [#72](https://github.com/MinobeRyo/kanpeki/pull/72) `da9e3c8` | Mac内Whisper/受信/接続コード #63 | mainのPython手順をまだ置換しない。実端末・framework署名/配布確認はPR参照 |
 | [#73](https://github.com/MinobeRyo/kanpeki/pull/73) `4af8e58` | 引用・数値・列挙・否定保持 #68 | 合成回帰と実資料品質を区別 |
 
 ## 文書から見つかった残件・未確定
@@ -44,3 +43,11 @@
 - 全員利用完了とは別。[招待報告](https://github.com/MinobeRyo/kanpeki/issues/28#issuecomment-5674224642)では一部招待・受諾/追加が残る。今回はApple現在値を再照会していない。
 - 主経路は両方の内部TestFlight。[チームの導入手順](TESTFLIGHT_TEAM.md)、[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)。Mac DMGは補助経路。外部公開リンクを内部配布入口にしない。
 - Slackのマージ・進捗・配布通知に成功記録あり。会話AI自動返信は別接続で未確認。[SLACK](SLACK.md)。
+
+## 本PRで追加するMac音声分析（2026-09-15）
+
+上記mainスナップショットへの追加差分: [PR #72](https://github.com/MinobeRyo/kanpeki/pull/72)、進捗と未確認事項: [Issue #63](https://github.com/MinobeRyo/kanpeki/issues/63)。[使い方](MAC_AUDIO.md)と[iPhone側の統合範囲](AUDIO_CAPTURE.md)を参照。
+
+- Mac上部「音声分析」から、モデル準備、録音受信、接続URL/コード、Whisper baseによるローカル分析、結果表示を実装。PythonやHomebrewの別起動は不要。
+- 合成日本語WAVの受信・実推論・結果返却とiPhoneデコーダーの互換、ローカルRelease sandboxビルドを確認。画面はNSHostingView描画で確認。
+- 実ウィンドウ操作、実iPhone録音、会場での精度は未確認。main統合・最終CI・TestFlightの現在値は上記PR/Issueを確認する。リアルタイム分析・共通時計・スライド履歴の自動同期は未対応。

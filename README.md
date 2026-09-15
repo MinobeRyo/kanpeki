@@ -33,3 +33,5 @@
 映像解析はMac/iPhoneのカメラ補助パネルに実装。[カメラ仕様](specs/CAMERA_ANALYSIS.md)と[開発・検証手順](docs/CAMERA_DEVELOPMENT.md)を参照。
 
 音声取得・解析は [AudioCapture](experiments/AudioCapture/README.md) の共有部品を本体iPhoneから利用します。[統合範囲](docs/AUDIO_CAPTURE.md)と[Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12)を参照。メニュー→その他→確認・接続→「音声を試す」は独立試験入口。発表UUIDへの明示録音・終了停止・同発表の音声結果入口はPR #60で部分統合済み。時計・統一結果の統合と実機検証は残件です。
+
+Macの音声分析は上部「音声分析」からモデル準備・受信・接続コード表示・結果確認まで行えます。[使い方と検証範囲](docs/MAC_AUDIO.md)。
