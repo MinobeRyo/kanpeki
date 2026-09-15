@@ -18,12 +18,21 @@ struct PresentationNotificationInput: Equatable {
 struct PresentationNotificationPolicy {
     private var observedExpirations = Set<UUID>()
     private var lastSpeechNotification: [UUID: TimeInterval] = [:]
+    private var lastObservedSessionID: UUID?
+    private var interruptedSessions = Set<UUID>()
 
     mutating func consumeTimeExpiration(_ input: PresentationNotificationInput) -> Bool {
+        if let id = input.sessionID { lastObservedSessionID = id }
+        if !input.isForeground || !input.isConnected || input.isQuestionMode {
+            if let id = lastObservedSessionID { interruptedSessions.insert(id) }
+        } else if !input.isExpired, let id = input.sessionID {
+            // A fresh pre-deadline sample permits an ordinary future alert again.
+            interruptedSessions.remove(id)
+        }
         guard let id = input.sessionID, input.isExpired else { return false }
         // Consume even while inactive. Returning from Q&A/background must not replay an alert.
         guard observedExpirations.insert(id).inserted else { return false }
-        return input.showsTimeExpired && input.isForeground
+        return input.showsTimeExpired && input.isForeground && !interruptedSessions.contains(id)
     }
 
     /// Hook for a future explicitly enabled speech-analysis notifier. No analyzer is enabled here.

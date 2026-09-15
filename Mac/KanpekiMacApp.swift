@@ -28,6 +28,7 @@ struct MacScreen: View {
             HStack(spacing: 12) {
                 Image("BrandMascot").resizable().scaledToFit().frame(width: 40, height: 40)
                 Text("カンペき").font(.title2.bold())
+                PresentationTimerStatus(snapshot: model.state.timer, receivedAt: model.timerReceivedAt, connected: true)
                 Spacer()
                 Label(link.connectedName == nil ? "iPhone未接続" : "iPhone接続済み", systemImage: "iphone")
                     .font(.callout)
@@ -99,6 +100,9 @@ struct MacScreen: View {
                 }.padding(24).frame(width: 520)
             }
             .onDisappear { camera.stop() }
+            .onChange(of: model.state.timer?.phase) { _, phase in
+                if phase == .ended { camera.stop() }
+            }
             .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitationName != nil }, set: { if !$0 { link.respondToInvitation(accept: false) } })) {
                 Button("許可") { link.respondToInvitation(accept: true) }
                 Button("拒否", role: .cancel) { link.respondToInvitation(accept: false) }
@@ -146,6 +150,11 @@ struct MacScreen: View {
                     Button(link.running ? "接続待機を停止" : "接続待機を開始") { link.running ? link.stop() : link.start() }
                 }
                 Divider()
+                GroupBox("発表時間") {
+                    PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
+                        connected: true, canStart: capture.sharing,
+                        send: { model.timerAction($0, duration: $1) })
+                }
                 Button { showCamera = true } label: { Label("カメラの設定・結果", systemImage: "video") }
                 if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)").font(.caption) }
                 if showGuide {

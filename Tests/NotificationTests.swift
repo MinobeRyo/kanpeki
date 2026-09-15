@@ -34,6 +34,21 @@ struct NotificationTests {
         input.sessionID = nil
         precondition(!input.showsTimeExpired && !policy.consumeTimeExpiration(input))
 
+        let interruptedID = UUID()
+        input = PresentationNotificationInput(sessionID: interruptedID, isExpired: false, isPresenting: true)
+        precondition(!policy.consumeTimeExpiration(input))
+        input.sessionID = nil; input.isConnected = false
+        precondition(!policy.consumeTimeExpiration(input))
+        input.sessionID = interruptedID; input.isConnected = true; input.isExpired = true
+        precondition(!policy.consumeTimeExpiration(input), "Do not vibrate late when first post-reconnect sample is expired")
+        input = PresentationNotificationInput(sessionID: UUID(), isExpired: false, isPresenting: true)
+        input.isForeground = false
+        precondition(!policy.consumeTimeExpiration(input))
+        input.isForeground = true
+        precondition(!policy.consumeTimeExpiration(input))
+        input.isExpired = true
+        precondition(policy.consumeTimeExpiration(input), "Return before expiry allows the future on-time alert")
+
         input = PresentationNotificationInput(sessionID: UUID(), isExpired: false, isPresenting: true)
         func speech(_ enabled: Bool = true, _ now: Double = 0, _ interval: Double = 60) -> Bool {
             policy.consumeSpeechNotice(input, analysisEnabled: enabled, now: now, minimumInterval: interval)
