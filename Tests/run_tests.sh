@@ -16,4 +16,8 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/PresentationNotificationPolicy.swift" \
   "$project_dir/Tests/NotificationTests.swift" -o "$test_dir/notification-tests"
 "$test_dir/notification-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/Models.swift" "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" \
+  "$project_dir/Mac/PowerPointBridge.swift" "$project_dir/Tests/PowerPointBridgeTests.swift" -o "$test_dir/powerpoint-tests"
+"$test_dir/powerpoint-tests"
 echo "Test artifacts: $test_dir"
