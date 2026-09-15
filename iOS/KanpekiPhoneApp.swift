@@ -67,6 +67,8 @@ struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
     @State private var showDetails = false
+    @State private var showScreenReview = false
+    @State private var reviewAfterDetails = false
     @StateObject private var camera = CameraController()
     @State private var showCamera = false
     @Environment(\.scenePhase) private var cameraScenePhase
@@ -94,13 +96,14 @@ struct PhoneScreen: View {
                             Text("Macで接続待機を開始してください。")
                             Button(link.running ? "もう一度探す" : "近くのMacを探す") {
                                 model.stop(); link.start()
-                            }.buttonStyle(.borderedProminent).controlSize(.large)
+                            }.buttonStyle(BrandPrimaryButtonStyle()).controlSize(.large)
                             ForEach(link.availablePeers, id: \.self) { peer in
                                 Button { link.invite(peer) } label: {
                                     Label(peer.displayName, systemImage: "desktopcomputer")
                                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                 }.buttonStyle(.bordered)
                             }
+                            Button("画面構成を試す") { showScreenReview = true }.buttonStyle(.bordered)
                             Text(link.status).font(.caption)
                             HStack {
                                 Image("BrandMascot").resizable().scaledToFit().frame(width: 72, height: 72)
@@ -141,9 +144,17 @@ struct PhoneScreen: View {
             }.padding(16).background(mint.ignoresSafeArea())
                 .foregroundStyle(ink)
                 .toolbar(.hidden, for: .navigationBar)
-                .sheet(isPresented: $showDetails) {
+                .sheet(isPresented: $showDetails, onDismiss: {
+                    if reviewAfterDetails {
+                        reviewAfterDetails = false
+                        showScreenReview = true
+                    }
+                }) {
                     NavigationStack {
                         List {
+                            Section("画面確認") {
+                                Button("画面構成を試す") { reviewAfterDetails = true; showDetails = false }
+                            }
                             Section("操作") {
                                 Text("スライドの右側をタップすると進み、左側で戻ります。")
                                 Text("ポインター送信・時間通知・音声分析は準備中です。")
@@ -167,6 +178,7 @@ struct PhoneScreen: View {
                     }
                 }
         }.tint(ink).preferredColorScheme(.light)
+        .fullScreenCover(isPresented: $showScreenReview) { ScreenReview() }
         .onChange(of: cameraScenePhase) { _, phase in
             if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {
                 camera.stop(interrupted: true)
