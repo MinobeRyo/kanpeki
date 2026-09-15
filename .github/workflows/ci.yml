@@ -63,7 +63,7 @@ jobs:
           ruby -c fastlane/Fastfile
       - if: matrix.check == 'mac'
         run: |
-          xcodebuild -project Kanpeki.xcodeproj -scheme KanpekiMac -configuration Release -derivedDataPath .build/mac-store ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Config/Mac-AppStore.entitlements CODE_SIGNING_ALLOWED=NO build
+          xcodebuild -project Kanpeki.xcodeproj -scheme KanpekiMac -configuration Release -derivedDataPath .build/mac-store ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO ENABLE_APP_SANDBOX=YES CODE_SIGN_ENTITLEMENTS=Config/Mac-AppStore.entitlements CODE_SIGNING_ALLOWED=NO build
       - if: matrix.check == 'phone'
         run: |
           xcodebuild -project Kanpeki.xcodeproj -scheme KanpekiPhone -configuration Release -destination 'generic/platform=iOS' -archivePath .build/unsigned.xcarchive -derivedDataPath .build/release archive CODE_SIGNING_ALLOWED=NO

@@ -80,7 +80,8 @@ struct MacScreen: View {
         model.presentationStartReason ?? (link.connectedName == nil && !macOnly ? "iPhoneを接続してください。" : nil)
     }
 
-    var body: some View {
+    // Keep Release type inference bounded on both Intel and Apple Silicon.
+    private var screenContent: some View {
         Group {
             if navigation.current == .audio {
                 AudioHostPanel(model: audio, onBack: { navigation.back() })
@@ -165,7 +166,11 @@ struct MacScreen: View {
             }
                 }.padding(28)
             }
-        }.frame(minWidth: 860, minHeight: 620)
+        }
+    }
+
+    private var screenActions: some View {
+        screenContent.frame(minWidth: 860, minHeight: 620)
             .background(mint).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
             .background { if navigation.current == .presentation { MacSlideKeyboard(model: model, onNarrowWindow: {}).frame(width: 0, height: 0) } }
             .task { await capture.refreshWindows(); if !link.running { link.start() } }
@@ -181,7 +186,10 @@ struct MacScreen: View {
                 audio: { navigation.open(.audio) }, practice: { showPractice = true }, home: { navigation.home() },
                 pause: { if presenting { model.timerAction(model.state.timer?.phase == .running ? .pause : .resume, duration: nil) } },
                 end: { if presenting { endingSession = model.state.timer?.sessionID } }))
-            .sheet(isPresented: $showDocument) {
+    }
+
+    private var screenSheets: some View {
+        screenActions.sheet(isPresented: $showDocument) {
                 VStack(alignment: .leading, spacing: 12) {
                     Button("戻る", systemImage: "chevron.left") { showDocument = false }
                     if let deck = model.deck { DocumentPreview(url: deck.url).id(model.documentRevision) }
@@ -204,7 +212,10 @@ struct MacScreen: View {
                     Button("閉じる") { showDetails = false }
                 }.padding(24).frame(width: 520)
             }
-            .onChange(of: camera.result) { _, _ in shareCameraEvidence() }
+    }
+
+    private var screenObservers: some View {
+        screenSheets.onChange(of: camera.result) { _, _ in shareCameraEvidence() }
             .onChange(of: model.state.timer) { _, _ in shareCameraEvidence() }
             .onDisappear { camera.stop(); model.cancelPresentationStart() }
             .modifier(PresentationResultsObserver(snapshot: model.state.timer, connected: true,
@@ -212,7 +223,10 @@ struct MacScreen: View {
             .onChange(of: model.state.timer?.phase) { _, phase in
                 if phase == .ended { camera.stop() }
             }
-            .sheet(item: $adjustment) { draft in
+    }
+
+    private var screenAdjustments: some View {
+        screenObservers.sheet(item: $adjustment) { draft in
                 TimeAdjustmentFlow(initialSeconds: draft.snapshot.durationSeconds,
                     canApply: { canAdjust(draft) }, apply: { seconds in
                         guard canAdjust(draft) else { return false }
@@ -243,7 +257,10 @@ struct MacScreen: View {
                     return true
                 })
             }
-            .confirmationDialog("発表を終了しますか？", isPresented: Binding(get: { endingSession != nil }, set: { if !$0 { endingSession = nil } }), titleVisibility: .visible) {
+    }
+
+    var body: some View {
+        screenAdjustments.confirmationDialog("発表を終了しますか？", isPresented: Binding(get: { endingSession != nil }, set: { if !$0 { endingSession = nil } }), titleVisibility: .visible) {
                 Button("発表を終了", role: .destructive) {
                     if let id = endingSession, model.state.timer?.sessionID == id { model.timerAction(.end, duration: nil) }
                     endingSession = nil
