@@ -14,7 +14,7 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     @Published var invitationName: String? = nil
     @Published var running = false
     var onMessage: ((WireMessage) -> Void)?
-    var onFrame: ((Data) -> Void)?
+    var onFrame: ((SlideFramePacket) -> Void)?
     var onConnection: ((Bool) -> Void)?
     let isHost: Bool
     private let localPeer: MCPeerID
@@ -26,6 +26,13 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     private var sentFrame: UInt64 = 0
     private var pendingFrame: UInt64?
     private var pendingPeer: MCPeerID?
+    private let callbackLock = NSLock()
+    private var callbackGeneration = UUID()
+    private func generation(advance: Bool = false) -> UUID {
+        callbackLock.lock(); defer { callbackLock.unlock() }
+        if advance { callbackGeneration = UUID() }
+        return callbackGeneration
+    }
 
     init(isHost: Bool) {
         self.isHost = isHost
@@ -44,7 +51,7 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
         guard !running else { return }
         running = true
         if isHost {
-            advertiser = MCNearbyServiceAdvertiser(peer: localPeer, discoveryInfo: ["role": "mac", "version": "1"], serviceType: Self.service)
+            advertiser = MCNearbyServiceAdvertiser(peer: localPeer, discoveryInfo: ["role": "mac", "version": "2"], serviceType: Self.service)
             advertiser?.delegate = self
             advertiser?.startAdvertisingPeer()
             status = "iPhoneからの接続待機中"
@@ -57,6 +64,7 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     }
 
     func stop() {
+        _ = generation(advance: true)
         pendingInvitation?(false, nil)
         pendingInvitation = nil
         invitationName = nil
@@ -77,7 +85,7 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
         guard session.connectedPeers.isEmpty, pendingPeer == nil else { return }
         pendingPeer = peer
         status = "Mac側で接続を許可してください"
-        browser?.invitePeer(peer, to: session, withContext: Data("kanpeki-v1".utf8), timeout: 20)
+        browser?.invitePeer(peer, to: session, withContext: Data("kanpeki-v2".utf8), timeout: 20)
         DispatchQueue.main.asyncAfter(deadline: .now() + 21) { [weak self] in
             guard let self, self.connectedName == nil else { return }
             self.pendingPeer = nil
@@ -98,10 +106,10 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
         catch { status = "送信失敗: \(error.localizedDescription)" }
     }
 
-    func sendFrame(_ jpeg: Data) {
+    func sendFrame(_ jpeg: Data, identity: SlideFrameIdentity) {
         guard !session.connectedPeers.isEmpty, pendingFrame == nil else { return }
         sentFrame &+= 1
-        guard let data = WireCodec.frame(jpeg, sequence: sentFrame) else { return }
+        guard let data = WireCodec.frame(jpeg, sequence: sentFrame, identity: identity) else { return }
         do {
             try session.send(data, toPeers: session.connectedPeers, with: .reliable)
             pendingFrame = sentFrame
@@ -109,8 +117,9 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     }
 
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+        let epoch = generation(advance: true)
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+            guard let self, self.generation() == epoch else { return }
             switch state {
             case .connected:
                 self.connectedName = peerID.displayName
@@ -134,16 +143,19 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
         guard session.connectedPeers.contains(peerID) else { return }
-        if let (sequence, jpeg) = WireCodec.readFrame(data), !isHost {
+        let epoch = generation()
+        if let frame = WireCodec.readFrame(data), !isHost {
             DispatchQueue.main.async { [weak self] in
-                guard let self, sequence > self.lastFrame else { return }
-                self.lastFrame = sequence
-                self.onFrame?(jpeg)
-                self.send(WireMessage(kind: "frameAck", frameSequence: sequence))
+                guard let self, self.generation() == epoch, self.session.connectedPeers.contains(peerID) else { return }
+                // ACK even discarded/duplicate frames so one stale packet cannot stall the bounded sender.
+                self.send(WireMessage(kind: "frameAck", frameSequence: frame.header.sequence))
+                guard frame.header.sequence > self.lastFrame else { return }
+                self.lastFrame = frame.header.sequence
+                self.onFrame?(frame)
             }
         } else if let message = WireCodec.decode(data) {
             DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
+                guard let self, self.generation() == epoch, self.session.connectedPeers.contains(peerID) else { return }
                 if message.kind == "frameAck", self.isHost {
                     if message.frameSequence == self.pendingFrame { self.pendingFrame = nil }
                 } else { self.onMessage?(message) }
@@ -154,7 +166,7 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.running, self.session.connectedPeers.isEmpty,
-                  self.pendingInvitation == nil, context == Data("kanpeki-v1".utf8) else {
+                  self.pendingInvitation == nil, context == Data("kanpeki-v2".utf8) else {
                 invitationHandler(false, nil); return
             }
             self.invitationName = peerID.displayName
@@ -165,7 +177,7 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
         DispatchQueue.main.async { self.status = "接続待機失敗: \(error.localizedDescription)"; self.running = false }
     }
     func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
-        guard info?["role"] == "mac", info?["version"] == "1" else { return }
+        guard info?["role"] == "mac", info?["version"] == "2" else { return }
         DispatchQueue.main.async { if !self.availablePeers.contains(peerID) { self.availablePeers.append(peerID) } }
     }
     func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
