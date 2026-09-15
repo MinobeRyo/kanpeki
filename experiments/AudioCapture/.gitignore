@@ -1,0 +1,14 @@
+.DS_Store
+.build/
+.venv/
+.tools/
+.data/
+__pycache__/
+*.pyc
+*.egg-info/
+xcuserdata/
+DerivedData/
+.env
+*.wav
+*.aiff
+*.bin
