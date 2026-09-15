@@ -1,8 +1,10 @@
 import SwiftUI
 import KanpekiCamera
+import KanpekiAudioHost
 
 @main struct KanpekiMacApp: App {
     @StateObject private var model = MacModel()
+    @StateObject private var audio = AudioHostModel()
     @State private var showScreenReview = false
     @AppStorage("macNotesSize") private var notesSize = 0
     @FocusedValue(\.preparationActions) private var actions
@@ -17,6 +19,7 @@ import KanpekiCamera
                     Button("QRでつなぐ") { actions?.qr() }
                     Button("時間を調整…") { actions?.time() }
                     Divider()
+                    Button("音声分析") { actions?.audio() }
                     Button("カメラの設定・結果") { actions?.camera() }
                     Button("接続の詳細") { actions?.details() }
                 }
@@ -32,10 +35,14 @@ import KanpekiCamera
                     Button("原稿を小さく") { notesSize = max(0, min(2, notesSize) - 1) }.keyboardShortcut("-")
                 }
             }
+        Window("カンペき · 音声分析", id: "audio-analysis") {
+            AudioHostPanel(model: audio).frame(minWidth: 680, minHeight: 620)
+        }.defaultSize(width: 760, height: 780)
     }
 }
 
 struct MacScreen: View {
+    @Environment(\.openWindow) private var openWindow
     @ObservedObject var model: MacModel
     @ObservedObject var capture: WindowCapture
     @ObservedObject var link: PeerLink
@@ -144,7 +151,8 @@ struct MacScreen: View {
                 window: { selectWindow() },
                 connection: { if !busy { connectionDraft = preparationDraft() } },
                 time: { if !busy, model.state.timer?.phase == .ready, let snapshot = model.state.timer { adjustment = MacTimeDraft(snapshot:snapshot) } },
-                camera: { showCamera = true }, details: { showDetails = true }, qr: { showQR = true }))
+                camera: { showCamera = true }, details: { showDetails = true }, qr: { showQR = true },
+                audio: { openWindow(id: "audio-analysis") }))
             .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
@@ -236,6 +244,7 @@ struct MacScreen: View {
             Button("接続方法を変更") { connectionDraft = preparationDraft() }.disabled(busy || model.state.timer?.phase == .ended)
             if link.running && link.connectedName == nil { Button("接続待機を停止") { link.stop() }.disabled(busy) }
             Divider()
+            Button("音声分析") { openWindow(id: "audio-analysis") }
             Button("カメラの設定・結果") { showCamera = true }
             Menu("原稿の文字サイズ") {
                 Button("標準") { notesSize = 0 }; Button("大") { notesSize = 1 }; Button("特大") { notesSize = 2 }
@@ -339,6 +348,7 @@ private struct MacPreparationActions {
     var camera: () -> Void
     var details: () -> Void
     var qr: () -> Void
+    var audio: () -> Void
 }
 private struct MacPreparationActionsKey: FocusedValueKey { typealias Value = MacPreparationActions }
 private extension FocusedValues {

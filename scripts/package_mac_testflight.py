@@ -63,6 +63,14 @@ def main():
                 raise RuntimeError('Invalid distribution entitlements')
             entfile=root/'sign.entitlements';entfile.write_bytes(plistlib.dumps(ent))
             run('lipo',str(app/'Contents/MacOS/KanpekiMac'),'-verify_arch','arm64','x86_64')
+            # Embedded libraries need the app's distribution identity before signing the outer bundle.
+            frameworks = app/'Contents/Frameworks'
+            if frameworks.exists():
+                for framework in sorted(frameworks.glob('*.framework')):
+                    if not framework.resolve().is_relative_to(frameworks.resolve()):
+                        raise RuntimeError('Framework resolves outside the app bundle')
+                    run('codesign','--force','--options','runtime','--timestamp',
+                        '--keychain',keychain,'--sign',match.group(1),str(framework))
             run('codesign','--force','--options','runtime','--timestamp','--entitlements',str(entfile),
                 '--keychain',keychain,'--sign',match.group(1),str(app))
             run('codesign','--verify','--deep','--strict',str(app))
