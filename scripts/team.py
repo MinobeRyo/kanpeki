@@ -25,6 +25,34 @@ def root():
 def context_path(at):
     return Path(run('git', 'rev-parse', '--path-format=absolute', '--git-path', 'kanpeki-task.json', cwd=at))
 
+def worktrees(at):
+    """Inventory this clone's worktrees, including paths containing spaces."""
+    raw = run('git', 'worktree', 'list', '--porcelain', '-z', cwd=at)
+    records = []
+    for block in raw.split('\0\0'):
+        fields = dict(field.split(' ', 1) if ' ' in field else (field, True)
+                      for field in block.split('\0') if field)
+        if 'worktree' not in fields:
+            continue
+        path = Path(fields['worktree'])
+        row = {'path': str(path), 'branch': str(fields.get('branch', '')).removeprefix('refs/heads/'),
+               'available': path.is_dir(), 'issue': None, 'owner': None}
+        if path.is_dir() and not fields.get('bare'):
+            context = context_path(path)
+            if context.exists():
+                data = json.loads(context.read_text())
+                if data.get('repo') == REPO:
+                    row.update(issue=data['issue'], owner=data['login'])
+        records.append(row)
+    return records
+
+
+def require_unused_issue(at, number):
+    for row in worktrees(at):
+        if row['issue'] == number:
+            raise ValueError(f"Issue #{number} already has a local worktree: {row['path']}. Resume it instead.")
+
+
 def issue(number):
     return json.loads(gh('issue', 'view', str(number), '--repo', REPO, '--json', 'number,title,state,assignees,labels,url'))
 
@@ -42,6 +70,9 @@ def bind(at, number, login):
     task = issue(number)
     owner_check(task, login)
     path = context_path(at)
+    if path.exists():
+        raise FileExistsError('This worktree already has a task context.')
+    require_unused_issue(at, number)
     data = {'repo': REPO, 'issue': number, 'login': login, 'branch': branch, 'session': uuid.uuid4().hex}
     # Exclusive creation: never overwrite a running worktree's assignment.
     with path.open('x') as f:
@@ -52,6 +83,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest='cmd', required=True)
     sub.add_parser('board')
+    sub.add_parser('list', help='List local worktrees and their issue assignments; no GitHub login required')
     b = sub.add_parser('bind'); b.add_argument('issue', type=int)
     s = sub.add_parser('start'); s.add_argument('issue', type=int); s.add_argument('slug')
     u = sub.add_parser('report'); u.add_argument('--state', choices=STATES, required=True); u.add_argument('--body-file', type=Path, required=True)
@@ -60,6 +92,9 @@ def main():
         print(gh('issue', 'list', '--repo', REPO, '--state', 'open', '--limit', '100', '--json', 'number,title,assignees,labels,updatedAt,url'))
         return
     at = root()
+    if a.cmd == 'list':
+        print(json.dumps(worktrees(at), ensure_ascii=False, indent=2))
+        return
     login = gh('api', 'user', '--jq', '.login')
     if a.cmd == 'bind':
         bind(at, a.issue, login)
@@ -67,6 +102,7 @@ def main():
         if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,39}', a.slug):
             raise ValueError('slug must be lowercase letters/digits/hyphens, max 40 characters.')
         owner_check(issue(a.issue), login)
+        require_unused_issue(at, a.issue)
         # Remote is explicit; never trust a fork's origin to be the team repository.
         default = gh('repo', 'view', REPO, '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name')
         run('git', 'fetch', f'https://github.com/{REPO}.git', default, cwd=at)

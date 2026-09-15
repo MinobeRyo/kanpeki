@@ -9,3 +9,5 @@
 SlackのAI相談はメンションとスレッドを入口にする案。連携・権限・対象チャンネルを確認してから有効化する。全会話の常時読み取りを既定にしない。AIの担当割り振りは提案とし、人間の依頼・受諾で確定する。
 
 実際のworktreeコマンドとIssue報告の手順は[TEAM_WORKFLOW.md](TEAM_WORKFLOW.md)。古い担当表を現在の完了状態として扱わず、最新Issueを確認する。
+
+作業を増やす際の短い手順は[WORKTREES.md](WORKTREES.md)。まず `python3 scripts/team.py list` でローカルの重複を確認する。

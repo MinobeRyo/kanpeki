@@ -25,3 +25,7 @@
 - [Mac：準備と翻訳](assets/design/device-size/mac-preparation.png)
 
 会場写真は提出物の案内として整理しました。既存アプリの移植と、最新デザインの実装は別の作業です。
+
+## 並行作業を始める
+
+[worktreeの作成・一覧・片付け](docs/WORKTREES.md)。担当Issueごとに `python3 scripts/team.py start 番号 作業名`、作成済み一覧は `python3 scripts/team.py list`。
