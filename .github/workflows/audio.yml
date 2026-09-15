@@ -1,0 +1,30 @@
+name: Audio module checks
+on:
+  pull_request:
+    paths:
+      - 'experiments/AudioCapture/backend/**'
+      - '.github/workflows/audio.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/AudioCapture/backend/**'
+      - '.github/workflows/audio.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: experiments/AudioCapture
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test metrics and real HTTP requests
+        run: PYTHONPATH=backend python -m unittest discover -s backend/tests -v
