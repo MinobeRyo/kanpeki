@@ -25,8 +25,7 @@
 | [#58](https://github.com/MinobeRyo/kanpeki/pull/58) `1283343` | 資料MCP実験＋発表全体の音声/カメラ根拠集約・返却・Mac/iPhone振り返り | [push報告](https://github.com/MinobeRyo/kanpeki/issues/33#issuecomment-5674648100)済み。事前資料分析のiPhone適用とは別経路。実ChatGPT新ツール返却・実機・配布は未検証 |
 | [#67](https://github.com/MinobeRyo/kanpeki/pull/67) `97f4e3f` | Mac準備カード・確認付き開始・共有復旧・案内保存 #61 | CI成功報告。実PowerPoint/権限/狭幅/操作一巡は未検証。「最大3操作」全達成ではない |
 | [#73](https://github.com/MinobeRyo/kanpeki/pull/73) `4af8e58` | 引用・数値・列挙・否定保持 #68 | 合成回帰と実資料品質を区別 |
-
-| [#81](https://github.com/MinobeRyo/kanpeki/pull/81) | PPTX標準プレビュー・PowerPoint起動・逐次準備UI #77（#67の開始ガードを継承） | 実Macで資料の複数ページ表示・同一PPTXを開く・取消を確認。共有権限待ち。配布は未確認。[手順](MAC_DOCUMENT_SETUP.md) |
+| [#81](https://github.com/MinobeRyo/kanpeki/pull/81) | PPTX標準プレビュー・PowerPoint起動・逐次準備UI #77（#67の開始ガードを継承） | 実Macで資料の複数ページ表示・同一PPTXを開く・取消を確認。sandbox Releaseでも実資料表示・4分30秒の確認/適用を確認。共有権限待ち。配布は未確認。[手順](MAC_DOCUMENT_SETUP.md) |
 
 ## 文書から見つかった残件・未確定
 
@@ -46,10 +45,14 @@
 - 主経路は両方の内部TestFlight。[チームの導入手順](TESTFLIGHT_TEAM.md)、[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)。Mac DMGは補助経路。外部公開リンクを内部配布入口にしない。
 - Slackのマージ・進捗・配布通知に成功記録あり。会話AI自動返信は別接続で未確認。[SLACK](SLACK.md)。
 
+## PR #58の統合調整
+
+最新mainのQR接続・簡素化UIを保持し、音声認識結果・カメラ集計・資料・時間のMCP共有と根拠付き振り返りを統合します。iPhoneの振り返りはメニュー→発表→ChatGPTから開きます。[利用手順](MCP_INTEGRATION.md)。事前分析のiPhone適用、実ChatGPT新ツール・実機・配布は別途確認が必要です。
+
 ## 本PRで追加するMac音声分析（2026-09-15）
 
 上記mainスナップショットへの追加差分: [PR #72](https://github.com/MinobeRyo/kanpeki/pull/72)、進捗と未確認事項: [Issue #63](https://github.com/MinobeRyo/kanpeki/issues/63)。[使い方](MAC_AUDIO.md)と[iPhone側の統合範囲](AUDIO_CAPTURE.md)を参照。
 
-- Mac上部「音声分析」から、モデル準備、録音受信、接続URL/コード、Whisper baseによるローカル分析、結果表示を実装。PythonやHomebrewの別起動は不要。
+- Macメニューバー「準備」→「音声分析」から、モデル準備、録音受信、接続URL/コード、Whisper baseによるローカル分析、結果表示を実装。PythonやHomebrewの別起動は不要。
 - 合成日本語WAVの受信・実推論・結果返却とiPhoneデコーダーの互換、ローカルRelease sandboxビルドを確認。画面はNSHostingView描画で確認。
 - 実ウィンドウ操作、実iPhone録音、会場での精度は未確認。main統合・最終CI・TestFlightの現在値は上記PR/Issueを確認する。リアルタイム分析・共通時計・スライド履歴の自動同期は未対応。

@@ -135,7 +135,10 @@ enum PPTXImporter {
                 }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
                 guard notes.utf8.count <= 64 * 1024 else { throw DeckImportError.invalid("1枚のノートは64KB以内にしてください") }
             }
-            slides.append(ImportedSlide(id: id, index: index + 1, notes: notes))
+            let slideRoot = try XMLTree.parse(entry(slidePath, in: archive))
+            let body = slideRoot.descendants("p").map { $0.descendants("t").map(\.text).joined() }.joined(separator: "\n")
+            guard body.utf8.count <= 128 * 1024 else { throw DeckImportError.invalid("1枚の本文は128KB以内にしてください") }
+            slides.append(ImportedSlide(id: id, index: index + 1, notes: notes, body: body))
         }
         return ImportedDeck(url: url, slides: slides)
     }

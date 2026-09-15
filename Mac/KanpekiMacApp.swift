@@ -20,6 +20,7 @@ import KanpekiAudioHost
                     Button("時間を調整…") { actions?.time() }
                     Divider()
                     Button("音声分析") { actions?.audio() }
+                    Button("ChatGPTで振り返る") { actions?.practice() }
                     Button("カメラの設定・結果") { actions?.camera() }
                     Button("接続の詳細") { actions?.details() }
                 }
@@ -49,6 +50,7 @@ struct MacScreen: View {
     @Binding var showScreenReview: Bool
     @AppStorage("macNotesSize") private var notesSize = 0
     @State private var showDetails = false
+    @State private var showPractice = false
     @State private var macOnly = false
     @State private var screenOnly = false
     @State private var endingSession: UUID?
@@ -152,7 +154,8 @@ struct MacScreen: View {
                 connection: { if !busy { connectionDraft = preparationDraft() } },
                 time: { if !busy, model.state.timer?.phase == .ready, let snapshot = model.state.timer { adjustment = MacTimeDraft(snapshot:snapshot) } },
                 camera: { showCamera = true }, details: { showDetails = true }, qr: { showQR = true },
-                audio: { openWindow(id: "audio-analysis") }))
+                audio: { openWindow(id: "audio-analysis") }, practice: { showPractice = true }))
+            .sheet(isPresented: $showPractice) { practiceSheet }
             .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
@@ -169,6 +172,8 @@ struct MacScreen: View {
                     Button("閉じる") { showDetails = false }
                 }.padding(24).frame(width: 520)
             }
+            .onChange(of: camera.result) { _, _ in shareCameraEvidence() }
+            .onChange(of: model.state.timer) { _, _ in shareCameraEvidence() }
             .onDisappear { camera.stop(); model.cancelPresentationStart() }
             .modifier(PresentationResultsObserver(snapshot: model.state.timer, connected: true,
                 camera: camera, association: $presentationResult))
@@ -223,6 +228,34 @@ struct MacScreen: View {
             } message: { Text(model.errorMessage ?? "") }
     }
 
+    private func shareCameraEvidence() {
+        let cameraID = presentationResult.sessionID == model.state.timer?.sessionID ? presentationResult.cameraID : nil
+        let facts = CameraAnalysisEvidence.facts(camera: camera, prefix: "macCamera", associatedCameraID: cameraID)
+        model.updateCameraAnalysis(facts, presentationID: facts.isEmpty ? nil : model.state.timer?.sessionID)
+    }
+
+
+    private var practiceSheet: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("ChatGPTで振り返る").font(.title2.bold())
+                Spacer()
+                Menu("共有の設定") {
+                    Button("分析データの共有を開始") { model.startMCP() }
+                    Button("共有を停止") { model.stopMCP() }.disabled(model.state.analysisSharingID == nil)
+                    Link("ChatGPTを開く", destination: URL(string: "https://chatgpt.com/")!)
+                }
+            }
+            Text(model.mcpStatus).font(.callout)
+            Text("共有には資料・音声認識結果・カメラ集計値が含まれます。").font(.caption)
+            Text("音声: \(model.sharedAudioAvailable ? "取得済み" : "未共有") · カメラ: \(model.sharedCameraAvailable ? "取得済み" : "未共有")").font(.caption)
+            Button("発表を分析・依頼文をコピー") { model.requestPracticeAnalysis() }
+                .disabled(model.state.analysisSharingID == nil || model.state.timer?.phase != .ended || model.timerFinishing)
+            Text(model.practiceAnalysisStatus).font(.callout)
+            ScrollView { PracticeFeedbackView(result: model.practiceAnalysis) }.frame(maxHeight: .infinity)
+            Button("閉じる") { showPractice = false }
+        }.padding(24).frame(width: 580, height: 540)
+    }
 
     private var options: some View {
         Menu {
@@ -245,6 +278,7 @@ struct MacScreen: View {
             if link.running && link.connectedName == nil { Button("接続待機を停止") { link.stop() }.disabled(busy) }
             Divider()
             Button("音声分析") { openWindow(id: "audio-analysis") }
+            Button("ChatGPTで振り返る") { showPractice = true }
             Button("カメラの設定・結果") { showCamera = true }
             Menu("原稿の文字サイズ") {
                 Button("標準") { notesSize = 0 }; Button("大") { notesSize = 1 }; Button("特大") { notesSize = 2 }
@@ -349,6 +383,7 @@ private struct MacPreparationActions {
     var details: () -> Void
     var qr: () -> Void
     var audio: () -> Void
+    var practice: () -> Void
 }
 private struct MacPreparationActionsKey: FocusedValueKey { typealias Value = MacPreparationActions }
 private extension FocusedValues {

@@ -21,6 +21,8 @@ def write_fixture(name, broken=False, all_notes=False):
         z.writestr('ppt/_rels/presentation.xml.rels', f'<Relationships>{items}</Relationships>')
         for slide, note in [(9, 7), (2, 19)] + ([(1, 42)] if all_notes else []):
             z.writestr(f'ppt/slides/_rels/slide{slide}.xml.rels', f'<Relationships><Relationship Id="n1" Type="{rel}/notesSlide" Target="../notesSlides/notesSlide{note}.xml"/></Relationships>')
+        for slide in [9, 1, 2]:
+            z.writestr(f'ppt/slides/slide{slide}.xml', f'<p:sld xmlns:p="{ns}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Body {slide} &amp; value</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>')
         extra = '<p:sp><p:nvSpPr><p:nvPr><p:ph type="sldNum"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>999</a:t></a:r></a:p></p:txBody></p:sp>'
         z.writestr('ppt/notesSlides/notesSlide7.xml', notes('<a:p><a:r><a:t>最初の原稿</a:t></a:r></a:p><a:p><a:r><a:t>二行目 &amp; 続き</a:t></a:r></a:p>', extra))
         z.writestr('ppt/notesSlides/notesSlide19.xml', notes('<a:p><a:r><a:t>最後の原稿</a:t></a:r></a:p>'))

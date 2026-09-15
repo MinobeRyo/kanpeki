@@ -28,3 +28,35 @@ fastlane/README.md
 *.certSigningRequest
 
 .delivery-state/
+
+# Preserved SlidePacer local outputs
+# Build products and local editor state
+.DS_Store
+.build/
+build/
+DerivedData/
+**/xcuserdata/
+*.xcuserstate
+__pycache__/
+*.py[cod]
+*.log
+
+# Local LLM data and private slide contents
+.ollama/
+models/
+*.gguf
+*.safetensors
+evaluation/
+slidepacer-*.json
+*.pptx
+*.ppt
+
+# Credentials and machine-specific settings
+.env
+.env.*
+!.env.example
+*.local.xcconfig
+
+**/node_modules/
+**/.npm-cache/
+**/.runtime/

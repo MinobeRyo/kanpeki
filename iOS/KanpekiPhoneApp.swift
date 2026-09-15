@@ -13,6 +13,9 @@ import Combine
     @Published private(set) var timerReceivedAt: TimeInterval?
     private var timerReceiver = PresentationTimerReceiver()
     private var pointerSequence: UInt64 = 0
+    private var analysisSequence: UInt64 = 0
+    private var lastAnalysisEvidence: PhoneAnalysisEvidence?
+    @Published var analysisEvidenceError: String?
     private var frameReceiver = SlideFrameReceiver()
     private var frameReceivedAt: TimeInterval?
     private var stateReceivedAt: TimeInterval?
@@ -54,6 +57,7 @@ import Combine
             self.lastStateDate = nil
             self.timerReceivedAt = nil
             self.timerReceiver = PresentationTimerReceiver()
+            self.lastAnalysisEvidence = nil
             self.frameReceiver = SlideFrameReceiver()
             self.frameReceivedAt = nil
             self.stateReceivedAt = nil
@@ -80,6 +84,25 @@ import Combine
         frameReceivedAt = nil
         stateReceivedAt = nil
         state = PresentationState()
+    }
+
+    func shareAnalysis(recordingID: UUID?, cameraID: UUID?, facts: [PracticeFact]) {
+        guard link.connectedName != nil, let sharingID = state.analysisSharingID,
+              let presentationID = state.timer?.sessionID, let timerReceivedAt,
+              (0..<3).contains(TimerClock.now - timerReceivedAt) else { return }
+        analysisSequence &+= 1
+        var value = PhoneAnalysisEvidence(sharingID: sharingID, presentationID: presentationID,
+            sequence: analysisSequence, recordingID: recordingID, cameraID: cameraID, facts: facts)
+        if !value.isValid {
+            analysisEvidenceError = "分析データが共有上限を超えました。短い録音で再度お試しください。"
+            value = PhoneAnalysisEvidence(sharingID: sharingID, presentationID: presentationID,
+                sequence: analysisSequence, recordingID: nil, cameraID: nil, facts: [])
+        } else { analysisEvidenceError = nil }
+        if let old = lastAnalysisEvidence, old.sharingID == value.sharingID,
+           old.presentationID == value.presentationID, old.recordingID == value.recordingID,
+           old.cameraID == value.cameraID, old.facts == value.facts { return }
+        lastAnalysisEvidence = value
+        link.send(WireMessage(kind: "analysisEvidence", analysisEvidence: value))
     }
 
     func timerAction(_ action: PresentationTimerAction, duration: Double?) {
@@ -238,6 +261,13 @@ struct PhoneScreen: View {
                             NavigationLink("発表") {
                                 List {
                                     PresentationResultsButton(association: presentationResult, camera: camera)
+                                    NavigationLink("ChatGPT") {
+                                        List {
+                                            Text(model.state.analysisSharingID == nil ? "Macで分析共有を開始" : "認識結果・カメラ集計を共有中")
+                                            if let error = model.analysisEvidenceError { Text(error) }
+                                            PracticeFeedbackView(result: model.state.practiceAnalysis)
+                                        }.navigationTitle("ChatGPT")
+                                    }
                                     PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
                                         connected: link.connectedName != nil, canStart: model.state.isSharing,
                                         send: { model.timerAction($0, duration: $1) })
@@ -290,18 +320,37 @@ struct PhoneScreen: View {
                 camera.stop(interrupted: true)
             }
         }
+        .onChange(of: camera.result) { _, _ in sharePracticeEvidence(report: audioRecorder.report) }
+        .onReceive(audioRecorder.$report) { report in sharePracticeEvidence(report: report) }
+        .onChange(of: model.state.analysisSharingID) { _, _ in sharePracticeEvidence(report: audioRecorder.report) }
         .onDisappear { camera.stop(); model.sendPointer(nil); audioRecorder.stopForInterruption() }
         .onChange(of: model.state.timer, initial: true) { _, _ in
             audioRecorder.observePresentation(id: model.state.timer?.sessionID, active: presentationAudioActive)
+            sharePracticeEvidence(report: audioRecorder.report)
         }
         .onChange(of: link.connectedName) { _, _ in
             audioRecorder.observePresentation(id: model.state.timer?.sessionID, active: presentationAudioActive)
+            sharePracticeEvidence(report: audioRecorder.report)
         }
         .modifier(PresentationResultsObserver(snapshot: model.state.timer, connected: link.connectedName != nil,
             camera: camera, association: $presentationResult))
         .onChange(of: model.state.timer?.phase) { _, phase in
             if phase == .ended { camera.stop() }
         }
+    }
+
+    private func sharePracticeEvidence(report: AudioReport?) {
+        let belongs = audioRecorder.identity.belongs(to: model.state.timer?.sessionID)
+        let recordingID = belongs && report != nil ? audioRecorder.identity.recordingID : nil
+        var facts: [PracticeFact] = []
+        if let recordingID, let report {
+            do { facts = try report.analysisFacts(recordingID: recordingID) }
+            catch { model.analysisEvidenceError = error.localizedDescription }
+        }
+        let cameraID = presentationResult.sessionID == model.state.timer?.sessionID ? presentationResult.cameraID : nil
+        let cameraFacts = CameraAnalysisEvidence.facts(camera: camera, prefix: "phoneCamera", associatedCameraID: cameraID)
+        facts += cameraFacts
+        model.shareAnalysis(recordingID: recordingID, cameraID: cameraFacts.isEmpty ? nil : cameraID, facts: facts)
     }
 
     private var presentationAudioActive: Bool {
@@ -347,7 +396,7 @@ struct PhoneScreen: View {
             } else if !presentationAudioActive {
                 Text("発表開始後に録音できます")
             }
-            Text("Macとの結果同期は未対応")
+            Text("時刻は未同期・Macで共有を開始できます")
                 .font(.footnote)
         }
     }

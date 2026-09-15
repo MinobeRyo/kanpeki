@@ -94,3 +94,7 @@ xcodebuild -project ios/KanpekiAudio.xcodeproj -scheme KanpekiAudio \
 - 最新mainを音声ブランチへ通常マージし、本体core検証、Mac/iPhone Simulatorの署名なしビルド成功。
 - iPhone 17 Pro / iOS 26.5 Simulatorでホーム「音声を試す」→録音準備画面→戻る→再度開くを確認。ブランド画像と接続入力、録音ボタンを表示。画面を開くだけではマイク権限を要求しない。
 - 今回のUI確認ではマイクを起動していない。実音声の実機録音、画面を閉じた録音の再取得、TestFlight実配布は別途確認する。
+
+## ChatGPTでの総合分析
+
+取得済みの音声認識結果は、MacでMCP共有を有効にすると発表ID・録音ID付きでペアリング済みMacへ転送できます。話速推定・フィラー候補・低音量区間・認識文・注意事項を資料と合わせてGPTが解釈し、根拠付きの振り返りをMac/iPhoneに表示します。生音声のクラウド送信と課金APIは追加しません。手順と検証範囲は [MCP連携](MCP_INTEGRATION.md#発表全体の分析音声カメラを統合) を参照してください。

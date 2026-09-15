@@ -15,6 +15,8 @@ struct PresentationState: Codable, Equatable {
     var frameIdentity: SlideFrameIdentity? = nil
     var frameReady: Bool? = nil
     var message = "Macで共有するウィンドウを選択してください"
+    var analysisSharingID: UUID? = nil
+    var practiceAnalysis: PracticeAnalysisResult? = nil
     var timer: PresentationTimerSnapshot? = nil
 
     var allowsSlideInteraction: Bool {
@@ -42,6 +44,7 @@ struct WireMessage: Codable {
     var timerCommand: PresentationTimerCommand? = nil
     var pointer: SlidePointerUpdate? = nil
     var frameIdentity: SlideFrameIdentity? = nil
+    var analysisEvidence: PhoneAnalysisEvidence? = nil
 }
 
 enum WireCodec {
@@ -50,8 +53,12 @@ enum WireCodec {
     static func decode(_ data: Data) -> WireMessage? {
         guard data.count <= maxMessageBytes,
               let value = try? JSONDecoder().decode(WireMessage.self, from: data),
-              value.version == 1, ["control", "state", "frameAck", "timerControl", "pointer"].contains(value.kind),
+              value.version == 1, ["control", "state", "frameAck", "timerControl", "pointer", "analysisEvidence"].contains(value.kind),
               value.state?.timer?.isValid != false,
+              value.state?.practiceAnalysis?.isValid != false,
+              (value.state?.practiceAnalysis == nil || value.state?.practiceAnalysis?.presentationID == value.state?.timer?.sessionID),
+              value.analysisEvidence?.isValid != false,
+              (value.kind != "analysisEvidence" || value.analysisEvidence != nil),
               value.state?.frameIdentity?.isValid != false,
               value.frameIdentity?.isValid != false else { return nil }
         return value
@@ -81,6 +88,7 @@ struct ImportedSlide: Codable, Equatable {
     let id: Int
     let index: Int
     let notes: String
+    var body: String = ""
 }
 struct ImportedDeck {
     let url: URL
