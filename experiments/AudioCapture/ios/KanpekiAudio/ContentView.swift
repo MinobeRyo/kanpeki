@@ -191,7 +191,7 @@ struct AudioCaptureView: View {
     }
 
     private func clock(_ seconds: Double) -> String {
-        String(format: "%02d:%02d", Int(max(0, seconds)) / 60, Int(max(0, seconds)) % 60)
+        AudioTimeText.clock(seconds)
     }
 }
 

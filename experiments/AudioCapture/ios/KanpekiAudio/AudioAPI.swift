@@ -26,6 +26,59 @@ struct AudioReport: Decodable {
     let transcript: [TranscriptSegment]?
     let slides: [SlideInterval]
     let warnings: [String]
+
+    func validate() throws {
+        // Backend accepts 0.1...900 seconds and rounds duration fields to milliseconds.
+        let tolerance = 0.001001
+        func require(_ condition: Bool) throws {
+            if !condition { throw AudioAPIError.message("音声結果の数値・時間範囲が不正です。結果は表示せず、同じ録音で再取得してください。") }
+        }
+        try require(duration.isFinite && (0.1...900).contains(duration))
+        try require(["not_configured", "complete", "failed", "no_speech_recognized"].contains(transcriptionStatus))
+        func metric(_ value: Double) throws { try require(value.isFinite && value >= 0) }
+        func intervals(_ values: [(Double, Double)], allowOverlap: Bool = false, allowEmpty: Bool = false) throws {
+            var previous = -Double.infinity
+            for (start, end) in values {
+                try require(start.isFinite && end.isFinite && start >= 0 && end <= duration + tolerance &&
+                            (allowEmpty ? end >= start : end > start) && start >= previous - tolerance)
+                previous = allowOverlap ? start : end
+            }
+        }
+        if let averageCharactersPerMinute { try metric(averageCharactersPerMinute) }
+        try metric(quietSeconds)
+        try require(quietSeconds <= duration + tolerance)
+        try intervals(quietIntervals.map { ($0.start, $0.end) })
+        for interval in quietIntervals {
+            try metric(interval.duration)
+            try require(abs(interval.duration - (interval.end - interval.start)) <= tolerance)
+        }
+        try require(abs(quietSeconds - quietIntervals.reduce(0) { $0 + $1.duration }) <= tolerance)
+        if let pace {
+            try intervals(pace.map { ($0.start, $0.end) })
+            for window in pace { try metric(window.charactersPerMinute) }
+        }
+        if let transcript { try intervals(transcript.map { ($0.start, $0.end) }, allowOverlap: true) }
+        if let fillerCandidates {
+            try intervals(fillerCandidates.map { ($0.start, $0.end) }, allowOverlap: true)
+            for candidate in fillerCandidates {
+                if let slide = candidate.slide { try require((1...10000).contains(slide)) }
+            }
+        }
+        try intervals(slides.map { ($0.start, $0.end) }, allowEmpty: true)
+        for slide in slides {
+            try require((1...10000).contains(slide.slide))
+            try metric(slide.duration)
+            try require(abs(slide.duration - (slide.end - slide.start)) <= tolerance)
+        }
+    }
+}
+
+enum AudioTimeText {
+    static func clock(_ seconds: Double) -> String {
+        guard seconds.isFinite, (0...900.001001).contains(seconds) else { return "未計測" }
+        let whole = Int(seconds)
+        return String(format: "%02d:%02d", whole / 60, whole % 60)
+    }
 }
 struct QuietInterval: Decodable { let start, end, duration: Double }
 struct FillerCandidate: Decodable { let text, context: String; let start, end: Double; let slide: Int? }
@@ -101,6 +154,7 @@ struct AudioAPI {
     func result(id: UUID) async throws -> AnalysisJob {
         let job: AnalysisJob = try await send("v1/sessions/\(id.uuidString.lowercased())")
         try Self.validateSessionID(job.id, expected: id)
+        try job.report?.validate()
         return job
     }
 
