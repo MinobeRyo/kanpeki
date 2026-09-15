@@ -10,6 +10,18 @@ import Combine
     @Published var lastFrameDate: Date?
     @Published var lastStateDate: Date?
     @Published var lastTapDate = Date.distantPast
+    private var pointerSequence: UInt64 = 0
+
+    func sendPointer(_ point: SlidePointerPoint?) {
+        guard link.connectedName != nil, let sessionID = state.pointerSessionID else { return }
+        if point != nil {
+            guard state.canControl, state.isSharing,
+                  let lastStateDate, Date().timeIntervalSince(lastStateDate) < 3,
+                  let lastFrameDate, Date().timeIntervalSince(lastFrameDate) < 3 else { return }
+        }
+        pointerSequence &+= 1
+        link.send(WireMessage(kind: "pointer", pointer: SlidePointerUpdate(sessionID: sessionID, sequence: pointerSequence, point: point)), reliably: point == nil)
+    }
 
     init() {
         link.onFrame = { [weak self] data in
@@ -41,6 +53,7 @@ import Combine
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
     func stop() {
+        sendPointer(nil)
         link.stop()
         image = nil
         lastFrameDate = nil
@@ -70,8 +83,6 @@ struct PhoneScreen: View {
     @StateObject private var camera = CameraController()
     @State private var showCamera = false
     @Environment(\.scenePhase) private var cameraScenePhase
-    @State private var dragged = false
-    @State private var touchStarted: Date?
     private let ink = Color(red: 92/255, green: 102/255, blue: 115/255)
     private let paper = Color(red: 249/255, green: 255/255, blue: 230/255)
     private let mint = Color(red: 217/255, green: 235/255, blue: 213/255)
@@ -146,7 +157,7 @@ struct PhoneScreen: View {
                         List {
                             Section("操作") {
                                 Text("スライドの右側をタップすると進み、左側で戻ります。")
-                                Text("ポインター送信・時間通知・音声分析は準備中です。")
+                                Text("スライド上で指を動かすとMacにポインターを表示します。指を離してもページは変わりません。")
                             }
                             Section("カメラ") {
                                 Button("カメラの設定・結果") { showCamera = true }
@@ -168,11 +179,12 @@ struct PhoneScreen: View {
                 }
         }.tint(ink).preferredColorScheme(.light)
         .onChange(of: cameraScenePhase) { _, phase in
+            if phase != .active { model.sendPointer(nil) }
             if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {
                 camera.stop(interrupted: true)
             }
         }
-        .onDisappear { camera.stop() }
+        .onDisappear { camera.stop(); model.sendPointer(nil) }
     }
 
     private func turn(_ action: RemoteAction, fresh: Bool) {
@@ -193,17 +205,13 @@ struct PhoneScreen: View {
                 }
             }.clipShape(RoundedRectangle(cornerRadius: 14))
                 .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        if touchStarted == nil { touchStarted = value.time }
-                        if hypot(value.translation.width, value.translation.height) > 8 { dragged = true }
-                    }
-                    .onEnded { value in
-                        defer { dragged = false; touchStarted = nil }
-                        guard !dragged, hypot(value.translation.width, value.translation.height) <= 8,
-                              value.time.timeIntervalSince(touchStarted ?? value.time) < 0.5 else { return }
-                        turn(value.location.x < geo.size.width / 2 ? .previous : .next, fresh: fresh)
-                    })
+                .overlay {
+                    SlideTouchSurface(imageSize: model.image?.size ?? .zero,
+                                      enabled: fresh && model.state.canControl && cameraScenePhase == .active && !showDetails,
+                                      sessionID: model.state.pointerSessionID,
+                                      onPointer: model.sendPointer,
+                                      onTap: { turn($0, fresh: fresh) })
+                }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("共有スライド")
                 .accessibilityAction(named: "次のスライド") { turn(.next, fresh: fresh) }
