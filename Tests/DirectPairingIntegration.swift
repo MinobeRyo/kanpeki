@@ -12,8 +12,8 @@ import Network
         var ticketEvents = 0
         let packets = [Data("hello".utf8), Data(repeating: 65, count: 180 * 1024), Data("end".utf8)]
         host.onTicket = { ticket in
-            guard let ticket, !started else { return }
             ticketEvents += 1
+            guard let ticket, !started else { return }
             if refresh, original == nil {
                 original = ticket
                 DispatchQueue.main.async { host.listen(name: "Local integration test", refresh: true) }
