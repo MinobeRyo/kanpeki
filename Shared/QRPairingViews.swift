@@ -31,7 +31,10 @@ struct QRPairingSheet: View {
                 .disabled(link.connectedName != nil || link.invitation != nil)
         }.padding(24).frame(width: 420)
             .onAppear { address = addresses.first ?? ""; link.showQR() }
-            .onChange(of: link.invitation?.id) { _, value in if value != nil { dismiss() } }
+            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitation != nil }, set: { _ in }), presenting: link.invitation) { invitation in
+                Button("許可") { link.respondToInvitation(accept: true, invitationID: invitation.id) }
+                Button("拒否", role: .cancel) { link.respondToInvitation(accept: false, invitationID: invitation.id) }
+            } message: { invitation in Text("\(invitation.name) にスライドと原稿を共有します。") }
             .onChange(of: link.connectedName) { _, value in if value != nil { dismiss() } }
     }
     private func qr(_ text: String) -> NSImage? {

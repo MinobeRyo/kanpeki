@@ -111,7 +111,7 @@ struct MacScreen: View {
             .onChange(of: model.state.timer?.phase) { _, phase in
                 if phase == .ended { camera.stop() }
             }
-            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitation != nil }, set: { _ in }), presenting: link.invitation) { invitation in
+            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitation != nil && !showQR }, set: { _ in }), presenting: link.invitation) { invitation in
                 Button("許可") { link.respondToInvitation(accept: true, invitationID: invitation.id) }
                 Button("拒否", role: .cancel) { link.respondToInvitation(accept: false, invitationID: invitation.id) }
             } message: { invitation in Text("\(invitation.name) に共有画面と原稿を送ります。自分の端末から接続を操作したか確認してください。") }
