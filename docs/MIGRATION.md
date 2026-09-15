@@ -29,6 +29,8 @@ Slack通知コードとアプリ本体の移植は、TestFlight再配布の完�
 
 ## 検証
 
+[PR #8](https://github.com/MinobeRyo/kanpeki/pull/8)で統合。GitHub上のAutomation checksも成功。Slackのマージ親投稿・変更点スレッド・Issue進捗通知は実配信確認済み（docs/SLACK.mdに実行リンク）。
+
 - Python運用テスト：54件成功（マージ通知の新規4件と移植先ルールの追加検証を含む）。
 - Swiftコア：17チェック成功。
 - Mac Debug：署名なしビルド成功。

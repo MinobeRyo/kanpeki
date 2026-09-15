@@ -1,6 +1,6 @@
 # Slack共有とAI相談の構成
 
-通知コードを移植し、マージ通知を追加した。SLACK_BOT_TOKENとチャンネル変数を登録済み。Actionsからの実到達はマージ後に検証する。会話を読むAIの自動返信は別の連携であり、今回の通知Botには含まれない。
+通知コードを移植し、マージ通知を追加した。SLACK_BOT_TOKENとチャンネル変数を登録済み。Actionsからの実到達を確認済み。会話を読むAIの自動返信は別の連携であり、今回の通知Botには含まれない。
 
 ## 通知
 
@@ -34,3 +34,11 @@ Repository Secret: `SLACK_BOT_TOKEN`。Repository Variables: `SLACK_CHANNEL_ID`�
 手動再送はActionsのMerged PR to Slackで対象PR番号を指定する。先にSlackを確認して重複を避ける。親だけ届いてスレッドが失敗した場合も全体再送の前に確認する。
 
 通知Botは送信のみ。会話へのAI返信は公式Codex連携と新リポジトリの環境接続が別途必要。接続未確認のまま自動返信可能と案内しない。
+
+## 実配信の確認結果（2026-09-15）
+
+- [PR #8のマージ通知](https://github.com/MinobeRyo/kanpeki/actions/runs/34917284820)：親投稿と変更点のスレッド返信がSlack APIで成功。
+- [Issue #7の進捗通知](https://github.com/MinobeRyo/kanpeki/actions/runs/34917349283)：完了コメントからの投稿が成功。
+- 対象はチームの `89_codexハッカソン`。本文は短く、詳細はPR／Issueへ。
+- iPhoneの既存TestFlightリンクは設定済み。このリンクの既存ビルドと今回の移植コミットの配布は区別する。
+- Macの新規配布、TestFlight自動CD、Slack会話へのAI返信の成功を示す検証ではない。
