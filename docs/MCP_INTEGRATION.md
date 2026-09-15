@@ -85,7 +85,7 @@ MCPテストは実SDK経由の初期化・ツール一覧・読み取り・結�
 
 ### データと契約
 
-- `get_practice_report(source: analysis)`：依頼ID・発表ID付きの固定した分析材料（`facts`）。本文/ノート、認識文の全区間、話速推定、フィラー候補と文脈、低音量区間、注意事項、タイマー、最大256件の同発表のページ観測、関連付いたMac/iPhoneカメラ集計。
+- `get_practice_report(source: analysis)`：依頼ID・発表ID付きの固定した分析材料（`facts`）。本文/ノート、認識文の全区間、話速推定、フィラー候補と文脈、低音量区間、注意事項、タイマー、最大256件の同発表のページ観測、関連付いたMac/iPhoneカメラ集計と最大120件の撮影相対時間帯。
 - `get_practice_report(source: live)`：従来のライブ観測に `analysisFacts` を追加。`get_live_state` は実際の取得有無を返します。
 - `submit_practice_analysis`：最大8件の良かった点・改善案・限界。すべてに既存fact IDを1〜8件付けます。受付とネイティブ反映は別です。
 - `get_analysis_status(kind: practice)`：ネイティブ側の反映/拒否状態。準備アプリ用の既定値は `preparation` のままです。
