@@ -20,6 +20,7 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     var usesObservedSnapshots = false
     private var snapshotFilter: SCContentFilter?
     private var snapshotConfiguration: SCStreamConfiguration?
+    private var lifecycleID = UUID()
     private var stream: SCStream?
     private let queue = DispatchQueue(label: "kanpeki.capture", qos: .userInitiated)
     private let context = CIContext(options: [.cacheIntermediates: false])
@@ -37,7 +38,10 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     }
 
     @MainActor func start(window: CaptureWindow) async {
-        await stop()
+        let attempt = UUID()
+        lifecycleID = attempt
+        if let previous = clearStreamState() { try? await previous.stopCapture() }
+        guard lifecycleID == attempt else { return }
         queue.sync { cachedJPEG = nil; lastTime = 0 }
         let filter = SCContentFilter(desktopIndependentWindow: window.window)
         let config = SCStreamConfiguration()
@@ -53,24 +57,36 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
             try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
             self.stream = stream
             try await stream.startCapture()
+            guard lifecycleID == attempt, self.stream === stream else {
+                try? await stream.stopCapture()
+                return
+            }
             sharing = true
             snapshotFilter = filter
             snapshotConfiguration = config
             message = "共有中 · 最大5fps / JPEG · 音声なし"
         } catch {
-            self.stream = nil
+            guard lifecycleID == attempt else { return }
+            _ = clearStreamState()
             message = "共有を開始できません: \(error.localizedDescription)"
         }
     }
 
     @MainActor func stop() async {
-        if let stream { try? await stream.stopCapture() }
+        lifecycleID = UUID()
+        // Clear before suspension: a late stop completion must not clear a newer stream.
+        if let previous = clearStreamState() { try? await previous.stopCapture() }
+    }
+
+    @MainActor private func clearStreamState() -> SCStream? {
+        let previous = stream
         stream = nil
         snapshotFilter = nil
         snapshotConfiguration = nil
         sharing = false
         image = nil
         message = "共有停止"
+        return previous
     }
 
     /// A fresh request; never re-labels an idle stream buffer after a page observation.
@@ -88,9 +104,9 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         DispatchQueue.main.async {
-            self.sharing = false
-            self.stream = nil
-            self.image = nil
+            guard self.stream === stream else { return }
+            self.lifecycleID = UUID()
+            _ = self.clearStreamState()
             self.message = "共有が停止しました: \(error.localizedDescription)"
             self.onStopped?()
         }

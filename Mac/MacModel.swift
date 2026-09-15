@@ -29,6 +29,7 @@ import UniformTypeIdentifiers
     private var snapshotRequests = SlideCaptureRequests()
     private var snapshotTask: Task<Void, Never>?
     private var lastSnapshotAt: TimeInterval?
+    private var sharingAttemptID = UUID()
     private var heartbeat: Timer?
     private let pointerOverlay = SlidePointerOverlay()
     private var pointerReceiver = SlidePointerReceiver()
@@ -87,6 +88,8 @@ import UniformTypeIdentifiers
     func startSharing() async {
         guard !timerFinishing else { return }
         guard let window = capture.windows.first(where: { $0.id == selectedWindowID }) else { return }
+        let attempt = UUID()
+        sharingAttemptID = attempt
         disableControl()
         sharedWindow = window
         state = PresentationState()
@@ -94,6 +97,7 @@ import UniformTypeIdentifiers
         invalidateFrames(newSession: true)
         state.title = window.window.owningApplication?.applicationName ?? "画面共有"
         await capture.start(window: window)
+        guard sharingAttemptID == attempt else { return }
         state.isSharing = capture.sharing
         state.message = window.isPowerPoint ? "プレビューを確認後、PowerPoint操作を有効にしてください" : "画面表示のみ対応。操作・原稿連携はPowerPointで利用できます"
         publishState()
@@ -101,9 +105,12 @@ import UniformTypeIdentifiers
     }
 
     func stopSharing() async {
+        let attempt = UUID()
+        sharingAttemptID = attempt
         disableControl()
         invalidateFrames(newSession: true)
         await capture.stop()
+        guard sharingAttemptID == attempt else { return }
         sharedWindow = nil
         state = PresentationState()
         state.message = "Macが共有を停止しました"
