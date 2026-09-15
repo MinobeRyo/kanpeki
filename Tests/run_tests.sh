@@ -40,12 +40,12 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Tests/AudioReportValidationTests.swift" -o "$test_dir/audio-report-tests"
 "$test_dir/audio-report-tests"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
-  "$project_dir/Mac/DocumentPreview.swift" "$project_dir/Tests/MacSetupTests.swift" -o "$test_dir/mac-setup-tests"
-"$test_dir/mac-setup-tests"
-xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
   "$project_dir/Tests/AudioReviewChecks.swift" -o "$test_dir/audio-review-tests"
 "$test_dir/audio-review-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Mac/DocumentPreview.swift" "$project_dir/Tests/MacSetupTests.swift" -o "$test_dir/mac-setup-tests"
+"$test_dir/mac-setup-tests"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/PracticeAnalysis.swift" \
   "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
