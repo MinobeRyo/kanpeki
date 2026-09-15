@@ -15,7 +15,8 @@ def living_document(path):
     if 'archive' in parts or PurePosixPath(path).name in {'PROMPTS.md', 'LICENSE.md'}:
         return False
     return (path.endswith('.md') and
-            (len(parts) == 1 or parts[0] in {'docs', 'specs', 'apps', 'experiments', 'integrations'}))
+            (len(parts) == 1 or parts[0] in {'docs', 'specs', 'apps', 'experiments', 'integrations',
+                                           'assets', '.agents', '.github', 'infrastructure'}))
 
 
 def validate_documentation(body, files):

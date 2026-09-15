@@ -65,7 +65,8 @@ class DocumentationTests(unittest.TestCase):
         self.assertEqual(m.validate_documentation(body, [{'filename': 'specs/LIMITS.md'}]), [])
 
     def test_nested_and_root_document_paths(self):
-        for path in ['AGENTS.md', 'apps/SlidePacer/README.md', 'specs/PRODUCT.md', 'integrations/mcp/README.md']:
+        for path in ['AGENTS.md', 'apps/SlidePacer/README.md', 'specs/PRODUCT.md', 'integrations/mcp/README.md',
+                     'assets/design/device-size/LAYOUT.md', '.agents/skills/x/SKILL.md', '.github/pull_request_template.md']:
             self.assertTrue(m.living_document(path))
         for path in ['../README.md', '/tmp/README.md', 'Tests/fake.md']:
             self.assertFalse(m.living_document(path))
