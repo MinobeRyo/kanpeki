@@ -61,3 +61,11 @@ main `66588fe`でPR #58のMCP連携が統合されたことを確認した。上
 - Mac上部「音声分析」から、モデル準備、録音受信、接続URL/コード、Whisper baseによるローカル分析、結果表示を実装。PythonやHomebrewの別起動は不要。
 - 合成日本語WAVの受信・実推論・結果返却とiPhoneデコーダーの互換、ローカルRelease sandboxビルドを確認。画面はNSHostingView描画で確認。
 - 実ウィンドウ操作、実iPhone録音、会場での精度は未確認。main統合・最終CI・TestFlightの現在値は上記PR/Issueを確認する。リアルタイム分析・共通時計・スライド履歴の自動同期は未対応。
+
+## #82：AI改善提案の初期実装（この変更の範囲）
+
+- schema 2の対象根拠/修正/次回確認、同一録音の区間候補、実測−設定時間の差、Mac/iPhoneの優先1件表示を追加。仕様は[AI_COACHING](../specs/AI_COACHING.md)、更新方法は[MCP_INTEGRATION](MCP_INTEGRATION.md)。main統合・検証結果は[Issue #82](https://github.com/MinobeRyo/kanpeki/issues/82)と実装PRを参照。
+- 旧schema 1の結果は互換維持。未取得情報や別時計を結び付けず、改善なしの限界のみの返却も許可する。
+- 共通R01の統合、正確なページ別同期、履歴比較、原稿の自動反映、実ChatGPT品質・実機・配布は今回の完了に含めない。上記の文書化時点の残件一覧から、この変更分だけを進めたもの。
+
+#82のローカル確認：MCP65テスト、Swift88チェック、既存core、実SDKとの往復、Mac/iPhone署名なしビルドが成功。合成UI6パターンの描画も確認。[PR #91](https://github.com/MinobeRyo/kanpeki/pull/91)の統合状態とCIは別に確認する。実機・実ChatGPT品質・配布は未検証。
