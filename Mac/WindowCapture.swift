@@ -17,6 +17,10 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     @Published var message = "「ウィンドウを探す」で画面収録を許可してください"
     var onJPEG: ((Data) -> Void)?
     var onStopped: (() -> Void)?
+    var usesObservedSnapshots = false
+    private var snapshotFilter: SCContentFilter?
+    private var snapshotConfiguration: SCStreamConfiguration?
+    private var lifecycleID = UUID()
     private var stream: SCStream?
     private let queue = DispatchQueue(label: "kanpeki.capture", qos: .userInitiated)
     private let context = CIContext(options: [.cacheIntermediates: false])
@@ -34,7 +38,10 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     }
 
     @MainActor func start(window: CaptureWindow) async {
-        await stop()
+        let attempt = UUID()
+        lifecycleID = attempt
+        if let previous = clearStreamState() { try? await previous.stopCapture() }
+        guard lifecycleID == attempt else { return }
         queue.sync { cachedJPEG = nil; lastTime = 0 }
         let filter = SCContentFilter(desktopIndependentWindow: window.window)
         let config = SCStreamConfiguration()
@@ -50,33 +57,63 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
             try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
             self.stream = stream
             try await stream.startCapture()
+            guard lifecycleID == attempt, self.stream === stream else {
+                try? await stream.stopCapture()
+                return
+            }
             sharing = true
+            snapshotFilter = filter
+            snapshotConfiguration = config
             message = "共有中 · 最大5fps / JPEG · 音声なし"
         } catch {
-            self.stream = nil
+            guard lifecycleID == attempt else { return }
+            _ = clearStreamState()
             message = "共有を開始できません: \(error.localizedDescription)"
         }
     }
 
     @MainActor func stop() async {
-        if let stream { try? await stream.stopCapture() }
+        lifecycleID = UUID()
+        // Clear before suspension: a late stop completion must not clear a newer stream.
+        if let previous = clearStreamState() { try? await previous.stopCapture() }
+    }
+
+    @MainActor private func clearStreamState() -> SCStream? {
+        let previous = stream
         stream = nil
+        snapshotFilter = nil
+        snapshotConfiguration = nil
         sharing = false
         image = nil
         message = "共有停止"
+        return previous
+    }
+
+    /// A fresh request; never re-labels an idle stream buffer after a page observation.
+    @MainActor func snapshot() async throws -> Data? {
+        guard sharing, let stream, let filter = snapshotFilter, let config = snapshotConfiguration else { return nil }
+        let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+        guard self.stream === stream, sharing else { return nil }
+        let rep = NSBitmapImageRep(cgImage: image)
+        for quality in [0.55, 0.25, 0.1] {
+            if let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: quality]),
+               !jpeg.isEmpty, jpeg.count <= WireCodec.maxFrameBytes { return jpeg }
+        }
+        return nil
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         DispatchQueue.main.async {
-            self.sharing = false
-            self.stream = nil
-            self.image = nil
+            guard self.stream === stream else { return }
+            self.lifecycleID = UUID()
+            _ = self.clearStreamState()
             self.message = "共有が停止しました: \(error.localizedDescription)"
             self.onStopped?()
         }
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer buffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard !usesObservedSnapshots else { return }
         guard type == .screen, buffer.isValid,
               let attachments = CMSampleBufferGetSampleAttachmentsArray(buffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
               let status = attachments.first?[.status] as? Int else { return }
