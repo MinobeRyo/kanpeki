@@ -52,13 +52,16 @@ platform :ios do
     key = kanpeki_api_key
     number = ENV.fetch("RELEASE_BUILD_NUMBER")
     version = get_version_number(xcodeproj: File.join(root,"Kanpeki.xcodeproj"), target: "KanpekiPhone")
-    args = {
-      "CURRENT_PROJECT_VERSION" => number,
-      "CODE_SIGN_STYLE" => "Manual",
-      "DEVELOPMENT_TEAM" => "XYJX89KRDM",
-      "CODE_SIGN_IDENTITY" => "Apple Distribution",
-      "PROVISIONING_PROFILE_SPECIFIER" => ENV.fetch("PROFILE_UUID")
-    }.map { |k,v| "#{k}=#{Shellwords.escape(v)}" }.join(" ")
+    # Scope provisioning to the app. Global xcargs also affect Swift Package
+    # resource bundles, which cannot accept an app provisioning profile.
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: File.join(root, "Kanpeki.xcodeproj"),
+      targets: ["KanpekiPhone"], build_configurations: ["Release"],
+      team_id: "XYJX89KRDM", code_sign_identity: "Apple Distribution",
+      profile_uuid: ENV.fetch("PROFILE_UUID")
+    )
+    args = "CURRENT_PROJECT_VERSION=#{Shellwords.escape(number)}"
     ipa = build_app(
       project: File.join(root,"Kanpeki.xcodeproj"), scheme: "KanpekiPhone",
       configuration: "Release", destination: "generic/platform=iOS",
