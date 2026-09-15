@@ -115,8 +115,9 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
         run: |
-          python3 -m pip install --break-system-packages 'cryptography==46.0.5'
-          python3 scripts/internal_delivery.py iphone
+          python3 -m venv "$RUNNER_TEMP/delivery-venv"
+          "$RUNNER_TEMP/delivery-venv/bin/pip" install 'cryptography==46.0.5'
+          "$RUNNER_TEMP/delivery-venv/bin/python" scripts/internal_delivery.py iphone
       - name: Clean signing material
         if: always()
         run: |
@@ -167,5 +168,6 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
         run: |
-          python3 -m pip install --break-system-packages 'cryptography==46.0.5'
-          python3 scripts/internal_delivery.py mac
+          python3 -m venv "$RUNNER_TEMP/delivery-venv"
+          "$RUNNER_TEMP/delivery-venv/bin/pip" install 'cryptography==46.0.5'
+          "$RUNNER_TEMP/delivery-venv/bin/python" scripts/internal_delivery.py mac
