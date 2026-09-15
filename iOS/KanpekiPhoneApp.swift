@@ -1,7 +1,7 @@
 import SwiftUI
+import KanpekiCamera
 import UIKit
 import Combine
-import KanpekiCamera
 
 @MainActor final class PhoneModel: ObservableObject {
     let link = PeerLink(isHost: false)
@@ -66,95 +66,149 @@ import KanpekiCamera
 struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
+    @State private var showDetails = false
     @StateObject private var camera = CameraController()
     @State private var showCamera = false
     @Environment(\.scenePhase) private var cameraScenePhase
-    private let accent = Color(red: 0.20, green: 0.35, blue: 0.82)
+    @State private var dragged = false
+    @State private var touchStarted: Date?
+    private let ink = Color(red: 92/255, green: 102/255, blue: 115/255)
+    private let paper = Color(red: 249/255, green: 255/255, blue: 230/255)
+    private let mint = Color(red: 217/255, green: 235/255, blue: 213/255)
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack {
-                        Label(link.connectedName == nil ? "未接続" : "Macと接続中", systemImage: "circle.fill").font(.caption.bold()).foregroundStyle(link.connectedName == nil ? .secondary : accent)
-                        Spacer()
-                        Text("SLIDE REMOTE").font(.system(size: 10, weight: .semibold, design: .monospaced)).foregroundStyle(.secondary)
-                    }
-                    if link.connectedName == nil {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("Macのスライドを手元に。").font(.title2.bold())
-                            Text("Macで「接続待機を開始」を押してから、下の一覧で接続先を選択してください。").font(.callout).foregroundStyle(.secondary)
-                            Button(link.running ? "検索をやり直す" : "近くのMacを探す") {
+            VStack(spacing: 16) {
+                HStack(spacing: 10) {
+                    Image("BrandMascot").resizable().scaledToFit().frame(width: 42, height: 42)
+                    Text("カンペき").font(.title2.bold())
+                    Spacer()
+                    Button { showDetails = true } label: {
+                        Image(systemName: "ellipsis").frame(width: 44, height: 44)
+                    }.accessibilityLabel("接続と操作の詳細")
+                }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if link.connectedName == nil {
+                            Text("Macにつなぐ").font(.title.bold())
+                            Text("Macで接続待機を開始してください。")
+                            Button(link.running ? "もう一度探す" : "近くのMacを探す") {
                                 model.stop(); link.start()
-                            }.buttonStyle(.borderedProminent)
+                            }.buttonStyle(.borderedProminent).controlSize(.large)
                             ForEach(link.availablePeers, id: \.self) { peer in
                                 Button { link.invite(peer) } label: {
-                                    HStack { Image(systemName: "desktopcomputer"); Text(peer.displayName); Spacer(); Image(systemName: "chevron.right") }.padding(12)
+                                    Label(peer.displayName, systemImage: "desktopcomputer")
+                                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                 }.buttonStyle(.bordered)
                             }
-                            Text(link.status).font(.caption).foregroundStyle(.secondary)
-                        }.padding(20).background(.background, in: RoundedRectangle(cornerRadius: 18))
-                    }
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(model.state.title).font(.headline).lineLimit(2)
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14).fill(Color(red: 0.055, green: 0.07, blue: 0.12))
-                            if let image = model.image {
-                                Image(uiImage: image).resizable().scaledToFit().padding(3)
-                            } else {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "rectangle.on.rectangle").font(.system(size: 35))
-                                    Text("Macの共有画面がここに表示されます").font(.caption)
-                                }.foregroundStyle(.white.opacity(0.7)).padding()
-                            }
-                        }.aspectRatio(16 / 9, contentMode: .fit).clipShape(RoundedRectangle(cornerRadius: 14))
-                        TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                            let fresh = model.lastStateDate.map { context.date.timeIntervalSince($0) < 3 } ?? false
-                            let frameAge = model.lastFrameDate.map { context.date.timeIntervalSince($0) }
-                            VStack(spacing: 12) {
-                                if let frameAge, frameAge > 3 {
-                                    Label("画像の更新が止まっています。Macの共有状態を確認してください", systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
-                                }
-                                HStack(spacing: 15) {
-                                    Button { model.move(.previous) } label: { Image(systemName: "chevron.left").font(.title2.bold()).frame(maxWidth: .infinity, minHeight: 52) }
-                                        .buttonStyle(.bordered).disabled(!fresh || !model.state.canControl || model.state.slideIndex == 1)
-                                    Text(model.state.slideIndex.map { "\($0) / \(model.state.totalSlides)" } ?? "— / —")
-                                        .font(.system(.title3, design: .monospaced)).monospacedDigit()
-                                    Button { model.move(.next) } label: { Image(systemName: "chevron.right").font(.title2.bold()).frame(maxWidth: .infinity, minHeight: 52) }
-                                        .buttonStyle(.borderedProminent).disabled(!fresh || !model.state.canControl || model.state.slideIndex == model.state.totalSlides)
-                                }
-                            }
+                            Text(link.status).font(.caption)
+                            HStack {
+                                Image("BrandMascot").resizable().scaledToFit().frame(width: 72, height: 72)
+                                Text("見つかったMacを選んでね").font(.callout)
+                            }.padding(.top)
+                        } else {
+                            Label("Macと接続中", systemImage: "link").font(.caption)
+                            Text(model.state.title).font(.headline).lineLimit(2)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("原稿").font(.caption.bold())
+                                Text(model.state.notes.isEmpty ? "原稿を待っています" : model.state.notes)
+                                    .font(.title3).lineSpacing(7)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            }.padding(20).background(paper, in: RoundedRectangle(cornerRadius: 20))
                         }
-                        Text(model.state.message).font(.caption).foregroundStyle(.secondary)
-                    }
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("発表者ノート", systemImage: "text.alignleft").font(.headline)
-                        Text(model.state.notesStatus).font(.caption).foregroundStyle(.secondary)
-                        Text(model.state.notes.isEmpty ? "原稿はMacで読み込んだpptxから同期されます。" : model.state.notes)
-                            .font(.body).lineSpacing(6).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
-                    }.padding(20).background(.background, in: RoundedRectangle(cornerRadius: 18))
-                    if camera.phase == .running {
-                        Label("カメラ：\(camera.subject.title) · \(camera.summary.currentQuality)", systemImage: "video")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }.padding(20)
-            }.background(Color(uiColor: .systemGroupedBackground))
-                .navigationTitle("カンペき")
-                .toolbar {
-                    Button { showCamera = true } label: { Image(systemName: "video") }.accessibilityLabel("カメラ分析")
-                    if link.connectedName != nil { Button("切断") { model.stop() } }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
                 }
-        }.tint(accent)
-        .sheet(isPresented: $showCamera) {
-            VStack {
-                HStack { Spacer(); Button("発表画面に戻る") { showCamera = false } }.padding()
-                CameraPanel(controller: camera, onContinueWithoutAnalysis: { showCamera = false })
-            }
-        }
+                if camera.phase == .running {
+                    Label("カメラ：\(camera.subject.title) · \(camera.summary.currentQuality)", systemImage: "video")
+                        .font(.caption).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if link.connectedName != nil {
+                    TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                        let fresh = model.lastStateDate.map { context.date.timeIntervalSince($0) < 3 } ?? false
+                        let frameFresh = model.lastFrameDate.map { context.date.timeIntervalSince($0) < 3 } ?? false
+                        VStack(spacing: 8) {
+                            if !fresh || !frameFresh {
+                                Label("共有画面の更新を待っています", systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+                            }
+                            Text(model.state.slideIndex.map { "\($0) / \(model.state.totalSlides)" } ?? "— / —")
+                                .font(.callout.monospacedDigit())
+                            slide(fresh: fresh && frameFresh)
+                        }
+                    }
+                }
+            }.padding(16).background(mint.ignoresSafeArea())
+                .foregroundStyle(ink)
+                .toolbar(.hidden, for: .navigationBar)
+                .sheet(isPresented: $showDetails) {
+                    NavigationStack {
+                        List {
+                            Section("操作") {
+                                Text("スライドの右側をタップすると進み、左側で戻ります。")
+                                Text("ポインター送信・時間通知・音声分析は準備中です。")
+                            }
+                            Section("カメラ") {
+                                Button("カメラの設定・結果") { showCamera = true }
+                                if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)") }
+                            }
+                            Section("接続") { Text(link.status); Text(model.state.message); Text(model.state.notesStatus) }
+                            if link.connectedName != nil {
+                                Button("Macとの接続を切る", role: .destructive) { model.stop(); showDetails = false }
+                            }
+                        }.navigationTitle("接続と操作")
+                            .toolbar { Button("閉じる") { showDetails = false } }
+                            .sheet(isPresented: $showCamera) {
+                                NavigationStack {
+                                    CameraPanel(controller: camera, onContinueWithoutAnalysis: { showCamera = false })
+                                        .toolbar { Button("戻る") { showCamera = false } }
+                                }
+                            }
+                    }
+                }
+        }.tint(ink).preferredColorScheme(.light)
         .onChange(of: cameraScenePhase) { _, phase in
             if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {
                 camera.stop(interrupted: true)
             }
         }
         .onDisappear { camera.stop() }
+    }
+
+    private func turn(_ action: RemoteAction, fresh: Bool) {
+        guard fresh, model.image != nil,
+              let index = model.state.slideIndex,
+              (action == .next ? index < model.state.totalSlides : index > 1) else { return }
+        model.move(action)
+    }
+
+    private func slide(fresh: Bool) -> some View {
+        GeometryReader { geo in
+            ZStack {
+                RoundedRectangle(cornerRadius: 14).fill(paper)
+                if let image = model.image {
+                    Image(uiImage: image).resizable().scaledToFit()
+                } else {
+                    Label("Macで共有を開始", systemImage: "rectangle.on.rectangle").font(.callout)
+                }
+            }.clipShape(RoundedRectangle(cornerRadius: 14))
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if touchStarted == nil { touchStarted = value.time }
+                        if hypot(value.translation.width, value.translation.height) > 8 { dragged = true }
+                    }
+                    .onEnded { value in
+                        defer { dragged = false; touchStarted = nil }
+                        guard !dragged, hypot(value.translation.width, value.translation.height) <= 8,
+                              value.time.timeIntervalSince(touchStarted ?? value.time) < 0.5 else { return }
+                        turn(value.location.x < geo.size.width / 2 ? .previous : .next, fresh: fresh)
+                    })
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("共有スライド")
+                .accessibilityAction(named: "次のスライド") { turn(.next, fresh: fresh) }
+                .accessibilityAction(named: "前のスライド") { turn(.previous, fresh: fresh) }
+        }.aspectRatio(model.image.map { $0.size.width / max($0.size.height, 1) } ?? 16/9, contentMode: .fit)
+            .frame(maxHeight: 320)
     }
 }

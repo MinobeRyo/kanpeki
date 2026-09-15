@@ -16,15 +16,15 @@ struct MacScreen: View {
     @State private var showAllWindows = false
     @StateObject private var camera = CameraController()
     @State private var showCamera = false
-    private let accent = Color(red: 0.20, green: 0.35, blue: 0.82)
+    private let accent = Color(red: 92/255, green: 102/255, blue: 115/255)
 
     var body: some View {
         HStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("カンペき").font(.system(size: 29, weight: .bold))
-                        Text("SLIDE BRIDGE / PROTOTYPE").font(.system(size: 10, weight: .semibold, design: .monospaced)).foregroundStyle(.secondary)
+                        HStack { Image("BrandMascot").resizable().scaledToFit().frame(width: 48, height: 48); Text("カンペき").font(.system(size: 29, weight: .bold)) }
+                        Text("スライドを手元に。").font(.caption).foregroundStyle(.secondary)
                     }
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
@@ -73,10 +73,10 @@ struct MacScreen: View {
                             Button("JSONを書き出す") { model.exportLog() }.disabled(model.events.isEmpty)
                             Button("新規記録") { model.resetLog() }
                         }
-                        Text("約800ms間隔の観測時刻です。音声との厳密な同期は次の検証段階です。").font(.caption2).foregroundStyle(.secondary)
+                        EmptyView()
                     }
                 }.padding(22)
-            }.frame(width: 310).background(Color(nsColor: .windowBackgroundColor))
+            }.frame(width: 310).background(Color(red: 217/255, green: 235/255, blue: 213/255))
             Divider()
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
@@ -89,14 +89,14 @@ struct MacScreen: View {
                         .font(.caption.bold()).foregroundStyle(capture.sharing ? accent : .secondary)
                 }
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16).fill(Color(red: 0.055, green: 0.07, blue: 0.12))
+                    RoundedRectangle(cornerRadius: 16).fill(Color(red: 249/255, green: 255/255, blue: 230/255))
                     if let image = capture.image {
                         Image(nsImage: image).resizable().scaledToFit().padding(4)
                     } else {
                         VStack(spacing: 15) {
-                            Image(systemName: "rectangle.on.rectangle").font(.system(size: 45)).foregroundStyle(.white.opacity(0.6))
-                            Text("いつものスライドを、ここに。").font(.title3.bold()).foregroundStyle(.white)
-                            Text("左側から共有するウィンドウを選択してください").foregroundStyle(.white.opacity(0.6)).font(.callout)
+                            Image("BrandMascot").resizable().scaledToFit().frame(width: 100, height: 100)
+                            Text("いつものスライドを、ここに。").font(.title3.bold()).foregroundStyle(accent)
+                            Text("左側から共有するウィンドウを選択してください").foregroundStyle(accent.opacity(0.8)).font(.callout)
                         }
                     }
                 }.frame(minHeight: 250, maxHeight: .infinity).clipShape(RoundedRectangle(cornerRadius: 16))
@@ -105,7 +105,7 @@ struct MacScreen: View {
                     Text(model.state.slideIndex.map { "\($0) / \(model.state.totalSlides)" } ?? "— / —").font(.system(.title3, design: .monospaced)).frame(minWidth: 85)
                     Button { model.move(.next) } label: { Label("次へ", systemImage: "chevron.right") }.buttonStyle(.borderedProminent).disabled(!model.state.canControl || model.state.slideIndex == model.state.totalSlides)
                     Spacer()
-                    Text("JPEG · 最大5fps").font(.caption).foregroundStyle(.secondary)
+                    EmptyView()
                 }.controlSize(.large)
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -120,8 +120,8 @@ struct MacScreen: View {
                     }.frame(height: 110)
                 }.padding(16).background(.background, in: RoundedRectangle(cornerRadius: 12))
                 Text(capture.message).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
-            }.padding(24).background(Color(nsColor: .underPageBackgroundColor))
-        }.frame(minWidth: 950, minHeight: 700).tint(accent)
+            }.padding(24).background(Color(red: 217/255, green: 235/255, blue: 213/255))
+        }.frame(minWidth: 950, minHeight: 700).tint(accent).foregroundStyle(accent).preferredColorScheme(.light)
         .sheet(isPresented: $showCamera) {
             VStack {
                 HStack { Spacer(); Button("発表画面に戻る") { showCamera = false } }.padding()

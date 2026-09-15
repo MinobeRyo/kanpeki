@@ -20,16 +20,27 @@ class CoordinationTests(unittest.TestCase):
             def git(*args):
                 return subprocess.check_output(['git','-C',str(repo),*args],text=True,stderr=subprocess.DEVNULL)
             git('init','-b','main');git('-c','user.name=Test','-c','user.email=test@example.invalid','commit','--allow-empty','-m','init')
-            a=Path(tmp)/'a';b=Path(tmp)/'b'
+            a=Path(tmp)/'a';b=Path(tmp)/'worktree with spaces'
             git('worktree','add','-b','work/a',str(a));git('worktree','add','-b','work/b',str(b))
             def task(n): return {'number':n,'state':'OPEN','assignees':[]}
             with patch.object(team,'issue',side_effect=task):
-                team.bind(a,2,'me');team.bind(b,3,'me')
+                team.bind(a,2,'me')
+                with self.assertRaisesRegex(ValueError, 'already has a local worktree'):
+                    team.bind(b,2,'me')
+                team.bind(b,3,'me')
+                rows=team.worktrees(a)
+                self.assertEqual({r['issue'] for r in rows if r['issue']}, {2,3})
+                self.assertEqual(len(rows),3)
                 with self.assertRaises(FileExistsError): team.bind(a,4,'me')
             self.assertNotEqual(team.context_path(a),team.context_path(b))
             self.assertEqual(json.loads(team.context_path(a).read_text())['issue'],2)
             self.assertEqual(json.loads(team.context_path(b).read_text())['issue'],3)
             self.assertEqual(git('status','--porcelain').strip(),'')
+
+    def test_list_does_not_need_github(self):
+        with patch.object(team,'root',return_value=Path('/tmp')), patch.object(team,'worktrees',return_value=[]), patch.object(team,'gh') as gh, patch('sys.argv',['team.py','list']):
+            team.main()
+            gh.assert_not_called()
 
     def test_empty_report_does_not_post(self):
         with tempfile.TemporaryDirectory() as tmp:
