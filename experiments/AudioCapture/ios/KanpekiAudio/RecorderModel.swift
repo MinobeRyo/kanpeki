@@ -13,6 +13,12 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
     @Published var report: AudioReport?
     @Published var connectionMessage: String?
     @Published var checking = false
+    @Published private(set) var isReviewPlaying = false
+    @Published private(set) var reviewPosition = 0.0
+    private var reviewPlayer: AVAudioPlayer?
+    private var reviewTimer: Timer?
+    private var reviewInterruptionObserver: NSObjectProtocol?
+
     private var idleTimerWasDisabled: Bool?
     private var recorder: AVAudioRecorder?
     private var timer: Timer?
@@ -39,6 +45,53 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         FileManager.default.temporaryDirectory.appendingPathComponent("kanpeki-recordings", isDirectory: true)
     }
 
+    /// Review only audio retained for this recording; never record while playing.
+    func playReview(start: Double, end: Double) {
+        stopReview()
+        guard hasRecording, !isBusy, let fileURL,
+              start.isFinite, end.isFinite, start >= 0, end >= start else { return }
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio)
+            try session.setActive(true)
+            let player = try AVAudioPlayer(contentsOf: fileURL)
+            guard let excerpt = AudioReviewRange(candidateStart: start, candidateEnd: end, duration: player.duration) else {
+                throw AudioAPIError.message("この箇所の音声がありません。")
+            }
+            let stopAt = excerpt.end
+            player.currentTime = excerpt.start
+            guard player.prepareToPlay(), player.play() else { throw AudioAPIError.message("音声を再生できませんでした。") }
+            reviewPlayer = player
+            reviewPosition = player.currentTime
+            isReviewPlaying = true
+            reviewInterruptionObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification,
+                object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.stopReview() }
+            }
+            reviewTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, let player = self.reviewPlayer else { return }
+                    self.reviewPosition = player.currentTime
+                    if !player.isPlaying || player.currentTime >= stopAt { self.stopReview() }
+                }
+            }
+        } catch {
+            stopReview()
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            self.error = error.localizedDescription
+        }
+    }
+
+    func stopReview() {
+        let wasPlaying = reviewPlayer != nil || isReviewPlaying
+        reviewTimer?.invalidate(); reviewTimer = nil
+        reviewPlayer?.stop(); reviewPlayer = nil
+        if let reviewInterruptionObserver { NotificationCenter.default.removeObserver(reviewInterruptionObserver) }
+        reviewInterruptionObserver = nil
+        isReviewPlaying = false
+        if wasPlaying { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+    }
+
     func check(address: String, token: String) async {
         checking = true
         connectionMessage = nil
@@ -51,6 +104,7 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
     func start(presentationID: UUID? = nil, canStart: @MainActor () -> Bool = { true }) async {
         guard phase == .ready else { return }
+        stopReview()
         guard canStart() else { return }
         identity.begin(presentationID: presentationID)
         let attempt = identity.recordingID!
@@ -140,6 +194,7 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
     }
 
     func stopForInterruption() {
+        stopReview()
         if phase == .requesting {
             pendingStartID = nil
             phase = .ready
@@ -171,6 +226,7 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
     func analyze(address: String, token: String) {
         guard let fileURL, let sessionID = identity.recordingID, phase == .recorded || phase == .complete else { return }
+        stopReview()
         let attempt = UUID()
         operationID = attempt
         error = nil
@@ -231,6 +287,7 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
     func discard() {
         guard !isBusy, phase != .recording else { return }
+        stopReview()
         if let fileURL { try? FileManager.default.removeItem(at: fileURL) }
         fileURL = nil; recorder = nil; report = nil; elapsed = 0; error = nil; notice = nil; phase = .ready
         identity = AudioRecordingIdentity()
