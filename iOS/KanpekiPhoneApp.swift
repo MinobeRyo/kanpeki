@@ -111,7 +111,6 @@ struct PhoneScreen: View {
     @State private var showDetails = false
     @State private var showAudioTrial = false
     @State private var showPresentationAudio = false
-    @State private var audioAfterDetails = false
     @StateObject private var audioRecorder = RecorderModel()
     @State private var showScreenReview = false
     @State private var reviewAfterDetails = false
