@@ -69,6 +69,9 @@ def brief(text, limit=200, lines=3):
     return value[:limit-1]+'…' if truncated else value
 
 def discover_mac_download():
+    # A configured Mac TestFlight link is preferred over legacy DMG discovery.
+    if os.environ.get('MAC_TESTER_URL'):
+        return
     # Only published Mac releases with the expected asset are advertised.
     releases=gh('releases?per_page=30')
     for release in releases:
@@ -90,9 +93,12 @@ def app_actions():
     mac_url=os.environ.get('MAC_TESTER_URL','')
     if mac_url:
         parsed=urllib.parse.urlparse(mac_url)
-        if parsed.scheme!='https' or parsed.netloc!='github.com' or not parsed.path.startswith('/'+REPO+'/releases/'):
-            raise ValueError('Invalid Mac download URL')
-        actions.append({'type':'button','text':plain('Mac版をダウンロード',70),'url':mac_url})
+        is_testflight = parsed.netloc == 'testflight.apple.com' and parsed.path.startswith('/join/')
+        is_release = parsed.netloc == 'github.com' and parsed.path.startswith('/'+REPO+'/releases/')
+        if parsed.scheme != 'https' or parsed.username or parsed.password or not (is_testflight or is_release):
+            raise ValueError('Invalid Mac distribution URL')
+        label = 'Macで試す' if is_testflight else 'Mac版をダウンロード'
+        actions.append({'type':'button','text':plain(label,70),'url':mac_url})
     return actions
 
 def messages(version, number, state, run, prs, notes, channel):

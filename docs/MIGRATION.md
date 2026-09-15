@@ -31,10 +31,12 @@ Slack通知コードとアプリ本体の移植は、TestFlight再配布の完�
 
 [PR #8](https://github.com/MinobeRyo/kanpeki/pull/8)で統合。GitHub上のAutomation checksも成功。Slackのマージ親投稿・変更点スレッド・Issue進捗通知は実配信確認済み（docs/SLACK.mdに実行リンク）。
 
-- Python運用テスト：54件成功（マージ通知の新規4件と移植先ルールの追加検証を含む）。
+- Python運用テスト：移植時54件成功。後続のPR #9を含め57件成功。
 - Swiftコア：17チェック成功。
 - Mac Debug：署名なしビルド成功。
 - iPhone Simulator Debug：署名なしビルド成功。初回は実行環境のCoreSimulatorアクセス制限で失敗し、サービスにアクセスできる環境で再実行して成功。
 - 実機ペアリング、画面取得、PowerPoint操作、外部TestFlight、SlidePacerの実機動作：今回未検証。
 
 秘密鍵・トークン・証明書・個人連絡先・本人の資料・ローカル認証・ビルド成果物はgitに保存しない。
+
+チームのマージ運用を最新権限に統一し、SlackのMac用リンクがTestFlightを優先できるよう追加検証した。
