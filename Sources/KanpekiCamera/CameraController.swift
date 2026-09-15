@@ -19,6 +19,7 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
     private var active = false
     private var requestID = UUID()
     private var activeID = UUID()
+    private let runGate = CameraRunGate()
     private var startTime = 0.0
     private var lastFrame = 0.0
     private var lastPublished = -Double.infinity
@@ -30,11 +31,15 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
     private var previousIdleTimer = false
     #endif
 
-    public override init() {
-        super.init()
+    private func observeInterruptions(id: UUID) {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
         for name in [AVCaptureSession.wasInterruptedNotification, AVCaptureSession.runtimeErrorNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: captureSession, queue: nil) { [weak self] _ in
-                DispatchQueue.main.async { self?.stop(interrupted: true) }
+                DispatchQueue.main.async {
+                    guard let self, self.runGate.accepts(id) else { return }
+                    self.stop(interrupted: true)
+                }
             })
         }
     }
@@ -49,6 +54,7 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
         guard phase != .preparing && phase != .running else { return }
         let id = UUID()
         requestID = id
+        runGate.begin(id)
         self.subject = subject
         result.begin(id: id, subject: subject)
         phase = .preparing
@@ -57,6 +63,7 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
             DispatchQueue.main.async {
                 guard let self, self.requestID == id else { return }
                 guard allowed else {
+                    self.runGate.invalidate(id)
                     self.result.update(id: id, status: .permissionDenied)
                     self.phase = .failed("カメラを使用できません。システム設定で許可してください。")
                     return
@@ -67,6 +74,8 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
     }
 
     private func configure(subject: CameraSubject, front: Bool, id: UUID) {
+        // The permission callback may have queued configuration before UI cancellation.
+        guard runGate.accepts(id) else { return }
         activeID = id
         do {
             captureSession.beginConfiguration()
@@ -90,6 +99,7 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
                 output.setSampleBufferDelegate(self, queue: queue)
                 guard captureSession.canAddOutput(output) else { throw CameraError.message("映像を取得できません") }
                 captureSession.addOutput(output)
+                guard runGate.attach(output, to: id) else { return }
                 if let connection = output.connection(with: .video) {
                     #if os(iOS)
                     if connection.isVideoRotationAngleSupported(90) { connection.videoRotationAngle = 90 }
@@ -105,17 +115,23 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
             lastFrame = 0
             lastPublished = -.infinity
             cadence.reset()
+            guard runGate.accepts(id) else { tearDown(); return }
             active = true
+            observeInterruptions(id: id)
             #if os(iOS)
             motion.deviceMotionUpdateInterval = 0.1
             motion.startDeviceMotionUpdates()
             #endif
             captureSession.startRunning()
+            // startRunning is synchronous: an in-flight call cannot be preempted,
+            // but a cancelled run must be stopped before publishing/processing input.
+            guard runGate.accepts(id) else { tearDown(); return }
             guard captureSession.isRunning else { throw CameraError.message("カメラを開始できません") }
             let timer = DispatchSource.makeTimerSource(queue: queue)
             timer.schedule(deadline: .now() + 1, repeating: .milliseconds(500))
             timer.setEventHandler { [weak self] in
-                guard let self, self.active, self.elapsed - self.lastFrame > 1100 else { return }
+                guard let self, self.active, self.runGate.accepts(id), self.activeID == id,
+                      self.elapsed - self.lastFrame > 1100 else { return }
                 do {
                     if let value = try self.analysis?.process(faces: [], at: self.elapsed, missing: true) { self.publish(value) }
                 } catch { self.fail(error) }
@@ -137,6 +153,7 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
     public func stop(interrupted: Bool = false) {
         guard phase == .running || phase == .preparing else { return }
         let sessionID = requestID
+        runGate.invalidate(sessionID)
         let wasRunning = phase == .running
         let finalStatus: CameraResult.Status = wasRunning ? (interrupted ? .inputInterrupted : .completed) : .cancelled
         result.update(id: sessionID, status: .finalizing, summary: summary)
@@ -167,6 +184,8 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
 
     private func tearDown() {
         active = false
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
         heartbeat?.cancel()
         heartbeat = nil
         captureSession.stopRunning()
@@ -180,8 +199,9 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
         guard phase == .running, summary.calibrating == nil else { return }
         summary.calibrating = target
         summary.calibrationRemaining = 3
+        let id = requestID
         queue.async {
-            guard self.active else { return }
+            guard self.active, self.activeID == id, self.runGate.accepts(id) else { return }
             do { try self.analysis?.calibrate(target, at: self.elapsed) }
             catch { self.fail(error) }
         }
@@ -190,7 +210,8 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
     private var elapsed: Double { (ProcessInfo.processInfo.systemUptime - startTime) * 1000 }
 
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard active, let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard active, runGate.accepts(activeID, input: output),
+              let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let time = elapsed
         let thermal = ProcessInfo.processInfo.thermalState
         let fps = thermal == .serious || thermal == .critical ? 6.0 : 25.0
@@ -225,6 +246,7 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
 
     private func fail(_ error: Error) {
         let id = activeID
+        runGate.invalidate(id)
         let finalSummary = analysis?.summary
         tearDown()
         DispatchQueue.main.async {

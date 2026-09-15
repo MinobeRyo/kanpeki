@@ -5,11 +5,11 @@ test_dir="$(mktemp -d "${TMPDIR:-/tmp}/kanpeki-tests.XXXXXX")"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 python3 "$project_dir/Tests/make_fixtures.py" "$test_dir/fixtures"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
-  "$project_dir/Shared/Models.swift" "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" "$project_dir/Mac/PPTXImporter.swift" \
-  "$project_dir/Tests/CoreTests.swift" "$project_dir/Tests/SlidePointerTests.swift" -o "$test_dir/core-tests"
+  "$project_dir/Shared/Models.swift" "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" "$project_dir/Shared/SlideFrame.swift" "$project_dir/Mac/PPTXImporter.swift" \
+  "$project_dir/Tests/CoreTests.swift" "$project_dir/Tests/SlidePointerTests.swift" "$project_dir/Tests/SlideFrameTests.swift" -o "$test_dir/core-tests"
 "$test_dir/core-tests" "$test_dir/fixtures"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
-  "$project_dir/Shared/Models.swift" "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" \
+  "$project_dir/Shared/Models.swift" "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" "$project_dir/Shared/SlideFrame.swift" \
   "$project_dir/Tests/TimerTests.swift" -o "$test_dir/timer-tests"
 "$test_dir/timer-tests"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
@@ -17,7 +17,7 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Tests/NotificationTests.swift" -o "$test_dir/notification-tests"
 "$test_dir/notification-tests"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
-  "$project_dir/Shared/Models.swift" "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" \
+  "$project_dir/Shared/Models.swift" "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" "$project_dir/Shared/SlideFrame.swift" \
   "$project_dir/Mac/PowerPointBridge.swift" "$project_dir/Tests/PowerPointBridgeTests.swift" -o "$test_dir/powerpoint-tests"
 "$test_dir/powerpoint-tests"
 echo "Test artifacts: $test_dir"
