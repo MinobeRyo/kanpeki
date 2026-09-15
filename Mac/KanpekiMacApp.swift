@@ -85,6 +85,7 @@ struct MacScreen: View {
             }
         }.padding(24).frame(minWidth: 980, minHeight: 720)
             .background(mint).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
+            .task { if !link.running { link.start() } }
             .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
