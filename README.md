@@ -51,8 +51,6 @@ Macの音声分析はホーム「分析・結果」→「音声分析を開く�
 
 発表終了後は、音声認識結果・カメラ集計値・資料・時間をまとめて既存ChatGPT MCPへ渡し、根拠付きの振り返りをMac/iPhoneで確認できます。使い方・取得条件・未検証範囲は [MCP連携](docs/MCP_INTEGRATION.md) を参照してください。文字起こしはMacで継続し、追加課金APIは使用しません。
 Macの統合開始・取消・時計を維持した共有復旧は[PR #67](https://github.com/MinobeRyo/kanpeki/pull/67)の差分。[操作と制限](docs/MAC_UI_IMPLEMENTATION.md)。逐次準備・資料プレビューは後続PR #81で、統合/配布前の開発版と現行配布版を区別してください。
-Macの音声分析は上部「音声分析」からモデル準備・受信・接続コード表示・結果確認まで行えます。[使い方と検証範囲](docs/MAC_AUDIO.md)。
 
-Macの統合開始・取消・時計を維持した共有復旧は[PR #67](https://github.com/MinobeRyo/kanpeki/pull/67)の差分。[操作と制限](docs/MAC_UI_IMPLEMENTATION.md)。逐次準備・資料プレビューは後続PR #81で、統合/配布前の開発版と現行配布版を区別してください。
 
 AI改善提案の初期実装（#82）は、対象の根拠・具体的な修正案・次の練習を返し、Mac/iPhoneで優先する1件を先に表示します。更新方法・MCP契約・検証範囲は[MCP連携](docs/MCP_INTEGRATION.md)、後続案との区別は[AI改善提案](specs/AI_COACHING.md)を参照してください。

@@ -56,6 +56,7 @@ struct MacScreen: View {
     @State private var showDetails = false
     @State private var showPractice = false
     @State private var showPreparationAI = false
+    @State private var notesAfterPreparation = false
     @State private var showPreparationNotes = false
     @State private var macOnly = false
     @State private var screenOnly = false
@@ -205,12 +206,14 @@ struct MacScreen: View {
                     PreparationNotesView(model: model)
                 }.padding(24).frame(minWidth: 480, minHeight: 180)
             }
-            .sheet(isPresented: $showPreparationAI) {
+            .sheet(isPresented: $showPreparationAI, onDismiss: {
+                if notesAfterPreparation { notesAfterPreparation = false; showPreparationNotes = true }
+            }) {
                 VStack {
                     HStack {
                         Button("戻る") { showPreparationAI = false }
                         Spacer()
-                        Button("原稿案を確認・採用") { showPreparationAI = false; showPreparationNotes = true }
+                        Button("原稿案を確認・採用") { notesAfterPreparation = true; showPreparationAI = false }
                     }.padding()
                     ContentView(sharedFolder: model.preparationFolder)
                 }.frame(width: 1000, height: 740)
