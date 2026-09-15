@@ -23,7 +23,7 @@
 | PR・確認head | 内容 | 限界 |
 |---|---|---|
 | [#58](https://github.com/MinobeRyo/kanpeki/pull/58) `1283343` | 資料MCP実験＋発表全体の音声/カメラ根拠集約・返却・Mac/iPhone振り返り | [push報告](https://github.com/MinobeRyo/kanpeki/issues/33#issuecomment-5674648100)済み。事前資料分析のiPhone適用とは別経路。実ChatGPT新ツール返却・実機・配布は未検証 |
-| [#67](https://github.com/MinobeRyo/kanpeki/pull/67) `97f4e3f` | Mac準備カード・確認付き開始・共有復旧・案内保存 #61 | CI成功報告。実PowerPoint/権限/狭幅/操作一巡は未検証。「最大3操作」全達成ではない |
+| [#67](https://github.com/MinobeRyo/kanpeki/pull/67)（2026-09-15再開） | Mac準備カード・確認付き開始・共有復旧・案内保存 #61。main39e2d05の音声/QR/招待IDを保持し警告色を修正。[記録](MAC_UI_IMPLEMENTATION.md) | 旧head97f4e3fはCI成功、再開後headはPRで確認。実PowerPoint/権限/狭幅/操作一巡は未検証。逐次準備・PPTXプレビュー・最大3操作は後続 #77/PR #81 |
 | [#73](https://github.com/MinobeRyo/kanpeki/pull/73) `4af8e58` | 引用・数値・列挙・否定保持 #68 | 合成回帰と実資料品質を区別 |
 
 ## 2026-09-15追記：AI改善提案の仕様整理
