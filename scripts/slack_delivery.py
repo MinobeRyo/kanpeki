@@ -97,7 +97,7 @@ def main():
     payload['blocks'][1]['elements'].append({'type': 'button', 'text': plain('配布ログ'), 'url': run['html_url']})
     def persist():
         statefile.write_text(json.dumps(saved))
-    if entry.get('summary') != summary:
+    if entry.get('summary') != summary or entry.get('blocks') != payload['blocks']:
         if entry.get('ts'):
             payload['ts'] = entry['ts']
             result = request('https://slack.com/api/chat.update', os.environ['SLACK_BOT_TOKEN'], payload)
@@ -107,6 +107,7 @@ def main():
             result = post(payload)
             entry['ts'] = result['ts']
         entry['summary'] = summary
+        entry['blocks'] = payload['blocks']
         persist()
     if not entry.get('notes'):
         prs = [pr for pr in gh('commits/' + run['head_sha'] + '/pulls') if pr.get('merged_at') and pr['base']['ref'] == 'main']
