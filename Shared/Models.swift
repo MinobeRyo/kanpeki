@@ -13,6 +13,10 @@ struct PresentationState: Codable, Equatable {
     var isSharing = false
     var message = "Macで共有するウィンドウを選択してください"
     var timer: PresentationTimerSnapshot? = nil
+
+    var allowsSlideInteraction: Bool {
+        timer.map { $0.phase == .running || $0.phase == .paused } ?? true
+    }
 }
 
 struct WireMessage: Codable {

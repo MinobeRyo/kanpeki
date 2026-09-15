@@ -12,6 +12,7 @@ import Foundation
         }
         var sample = timer.snapshot(at: 0)
         expect(sample.durationSeconds == nil, "no invented default duration")
+        expect(!PresentationState(timer: sample).allowsSlideInteraction, "preparation does not send slide controls")
         expect(!timer.apply(command(.start, sample), at: 0), "cannot start unconfigured")
         expect(!timer.apply(command(.configure, sample, seconds: .infinity), at: 0), "reject invalid duration")
         expect(!timer.apply(command(.configure, sample, seconds: 0), at: 0), "reject zero duration")
@@ -32,6 +33,7 @@ import Foundation
         expect(!timer.apply(command(.pause, sample), at: 144), "expired snapshot lease rejects buffered control")
         sample = timer.snapshot(at: 200)
         expect(sample.elapsedSeconds == 111 && sample.phase == .running, "expiry never ends presentation")
+        expect(PresentationState(timer: sample).allowsSlideInteraction, "expired running timer keeps slide controls")
         expect(sample.elapsed(at: 505, receivedAt: 500) == 114, "stale phone estimate capped at three seconds")
         expect(timer.elapsed(at: 202) == 113, "opening/cancelling confirmation does not pause")
         expect(timer.apply(command(.end, sample), at: 202), "explicit finish")

@@ -143,7 +143,7 @@ import UniformTypeIdentifiers
     }
 
     func move(_ action: RemoteAction) {
-        guard state.canControl, monitoring, capture.sharing else { return }
+        guard state.canControl, state.allowsSlideInteraction, monitoring, capture.sharing else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastMoveAt > 0.25 else { return }
         lastMoveAt = now

@@ -39,7 +39,7 @@ import Combine
         }
     }
     func move(_ action: RemoteAction) {
-        guard link.connectedName != nil, state.canControl, state.isSharing,
+        guard link.connectedName != nil, state.canControl, state.allowsSlideInteraction, state.isSharing,
               let lastStateDate, Date().timeIntervalSince(lastStateDate) < 3,
               Date().timeIntervalSince(lastTapDate) >= 0.3 else { return }
         lastTapDate = Date()
@@ -85,6 +85,7 @@ struct PhoneScreen: View {
     @State private var showDetails = false
     @StateObject private var camera = CameraController()
     @State private var showCamera = false
+    @StateObject private var notifications = PresentationNotificationPresenter()
     @Environment(\.scenePhase) private var cameraScenePhase
     @State private var dragged = false
     @State private var touchStarted: Date?
@@ -103,6 +104,15 @@ struct PhoneScreen: View {
                     Button { showDetails = true } label: {
                         Image(systemName: "ellipsis").frame(width: 44, height: 44)
                     }.accessibilityLabel("接続と操作の詳細")
+                }
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    let timer = model.state.timer
+                    let fresh = link.connectedName != nil && model.timerReceivedAt.map { TimerClock.now - $0 < 3 } == true
+                    PresentationNotificationBanner(presenter: notifications,
+                        input: PresentationNotificationInput(sessionID: timer?.sessionID,
+                            isExpired: timer?.durationSeconds.map { timer!.elapsedSeconds >= $0 } ?? false,
+                            isPresenting: timer?.phase == .running || timer?.phase == .paused,
+                            isForeground: cameraScenePhase == .active, isConnected: fresh))
                 }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
