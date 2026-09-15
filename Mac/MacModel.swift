@@ -26,6 +26,8 @@ import UniformTypeIdentifiers
     private var lastObservedPath: String?
     private var latestJPEG: Data?
     private var heartbeat: Timer?
+    private let pointerOverlay = SlidePointerOverlay()
+    private var pointerReceiver = SlidePointerReceiver()
 
     init() {
         capture.onJPEG = { [weak self] data in self?.latestJPEG = data; self?.link.sendFrame(data) }
@@ -39,12 +41,21 @@ import UniformTypeIdentifiers
         link.onConnection = { [weak self] connected in
             guard let self else { return }
             self.requests = RequestDeduplicator()
+            self.resetPointer()
             if connected {
                 self.publishState()
                 if self.capture.sharing, let jpeg = self.latestJPEG { self.link.sendFrame(jpeg) }
             }
         }
         link.onMessage = { [weak self] message in
+            if message.kind == "pointer", let self, let update = message.pointer,
+               self.pointerReceiver.accept(update, sessionID: self.state.pointerSessionID) {
+                if let point = update.point, self.capture.sharing, self.state.canControl, self.state.allowsSlideInteraction,
+                   self.link.connectedName != nil, let windowID = self.sharedWindow?.id {
+                    self.pointerOverlay.show(point, windowID: windowID)
+                } else { self.pointerOverlay.clear() }
+                return
+            }
             guard let self, self.requests.accept(message.requestID) else { return }
             if message.kind == "timerControl", let command = message.timerCommand {
                 self.applyTimer(command)
@@ -66,6 +77,7 @@ import UniformTypeIdentifiers
         latestJPEG = nil
         sharedWindow = window
         state = PresentationState()
+        resetPointer()
         state.title = window.window.owningApplication?.applicationName ?? "画面共有"
         await capture.start(window: window)
         state.isSharing = capture.sharing
@@ -98,6 +110,7 @@ import UniformTypeIdentifiers
     }
 
     func disableControl() {
+        resetPointer()
         timer?.invalidate()
         timer = nil
         monitoring = false
@@ -129,6 +142,7 @@ import UniformTypeIdentifiers
                 } else { state.notesStatus = "表示中の資料とpptxが一致しません。保存後に同じファイルを再取込してください" }
             } else { state.notesStatus = "発表者ノートを表示するにはpptxを読み込んでください" }
             if lastObservedID != position.id || lastObservedPath != position.path {
+                resetPointer()
                 events.append(SlideObservation(sessionID: sessionID, observedAt: Date(), elapsedMs: Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1000), presentation: position.title, slideID: position.id, slideIndex: position.index, timingSource: "PowerPoint polling 800ms; observed time, not exact transition time"))
                 lastObservedID = position.id
                 lastObservedPath = position.path
@@ -200,6 +214,12 @@ import UniformTypeIdentifiers
             encoder.dateEncodingStrategy = .iso8601
             try encoder.encode(events).write(to: url, options: .atomic)
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func resetPointer() {
+        pointerOverlay.clear()
+        pointerReceiver = SlidePointerReceiver()
+        state.pointerSessionID = UUID()
     }
 
     func timerAction(_ action: PresentationTimerAction, duration: Double?) {
