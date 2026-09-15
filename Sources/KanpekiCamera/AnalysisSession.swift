@@ -24,6 +24,7 @@ public struct CameraSummary: Equatable {
     public var calibrationRemaining = 0.0
     public var warning = ""
     public var currentQuality = "準備中"
+    public var timeBands: [CameraTimeBand] = []
     public init() {}
 }
 
@@ -38,7 +39,7 @@ final class AnalysisSession {
     private let engine: JSValue
     private(set) var summary = CameraSummary()
     private var lastTime = -1.0
-    private var lastCountedSecond = 0
+    private var timeBands = CameraTimeBands()
 
     init(subject: CameraSubject) throws {
         guard let context = JSContext(),
@@ -68,7 +69,7 @@ final class AnalysisSession {
     @discardableResult
     func process(faces: [[String: Any]], at time: Double, missing: Bool = false,
                  moving: Bool = false) throws -> CameraSummary {
-        guard time.isFinite, time > lastTime else { return summary }
+        guard time.isFinite, time > lastTime, let second = CameraTimeBands.second(atMilliseconds: time) else { return summary }
         lastTime = time
         context.exception = nil
         guard let result = engine.invokeMethod("process", withArguments: [[
@@ -86,20 +87,15 @@ final class AnalysisSession {
             ($0["yaw"] as? Double)?.isFinite == true && ($0["pitch"] as? Double)?.isFinite == true
         }
         summary.currentQuality = missing ? "入力が途切れています" : moving ? "端末の動きを検出" : observable ? "解析中" : "顔を確認できません"
-        let second = Int(time / 1000)
-        if second > lastCountedSecond {
-            // Gaps are unobserved, never fabricated as successful samples.
-            let gap = second - lastCountedSecond
-            summary.sampledSeconds += gap
-            summary.missingSeconds += gap - (observable ? 1 : 0)
-            summary.observableSeconds += observable ? 1 : 0
-            lastCountedSecond = second
+        let nod = (result["rows"] as? [[String: Any]] ?? []).contains {
+            $0["type"] as? String == "sample" && ($0["nod"] as? Int ?? 0) > 0
         }
-        if observable, let rows = result["rows"] as? [[String: Any]] {
-            for row in rows where row["type"] as? String == "sample" {
-                if (row["nod"] as? Int ?? 0) > 0 { summary.nodCandidateSeconds += 1 }
-            }
-        }
+        timeBands.record(second: second, observable: observable, nod: nod)
+        summary.sampledSeconds = timeBands.sampledSeconds
+        summary.observableSeconds = timeBands.observableSeconds
+        summary.missingSeconds = timeBands.missingSeconds
+        summary.nodCandidateSeconds = timeBands.nodCandidateSeconds
+        summary.timeBands = timeBands.bands
         return summary
     }
 

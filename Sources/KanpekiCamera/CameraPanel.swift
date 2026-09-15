@@ -161,6 +161,29 @@ public struct CameraPanel: View {
             if summary.missingSeconds > 0 {
                 Label("未計測・判別できない区間：約\(summary.missingSeconds)秒", systemImage: "exclamationmark.circle")
             }
+            if !summary.timeBands.isEmpty {
+                DisclosureGroup("撮影開始からの時間帯") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("この撮影の開始からの概算です。発表タイマー・音声の時間とは対応付けていません。")
+                            .font(.footnote)
+                        Text("長い撮影では隣接区間をまとめます。候補秒数は動作回数・人数ではありません。")
+                            .font(.footnote)
+                        ForEach(summary.timeBands, id: \.startSecond) { band in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(captureTime(band.startSecond))〜\(captureTime(band.endSecond))").font(.headline.monospacedDigit())
+                                Text("観測可能 \(band.observableSeconds)秒 · 未計測/判別不可 \(band.missingSeconds)秒")
+                                    .font(.callout)
+                                if snapshot.subject == .audience, band.observableSeconds > 0 {
+                                    Text("うなずき候補のあった時間 \(band.nodCandidateSeconds)秒").font(.callout)
+                                } else if band.observableSeconds == 0 {
+                                    Text("候補を評価できない区間です").font(.caption)
+                                }
+                            }
+                            Divider()
+                        }
+                    }.padding(.top, 8)
+                }
+            }
             DisclosureGroup("話し方") {
                 Text("音声分析は未接続です。フィラー・間・改善候補はまだ表示できません。")
             }
@@ -185,6 +208,10 @@ public struct CameraPanel: View {
         case "away": return "確認した方向の外"
         default: return "未確認"
         }
+    }
+
+    private func captureTime(_ second: Int) -> String {
+        "\(second / 60):\(String(format: "%02d", second % 60))"
     }
 }
 
