@@ -3,24 +3,25 @@ on:
   workflow_run:
     workflows: [TestFlight CD]
     types: [completed]
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       release_run_id:
-        description: Completed TestFlight CD run ID to announce (check for duplicates first)
-        required: true
+        description: Completed TestFlight CD run ID (empty = latest)
+        required: false
 permissions:
   contents: read
   actions: read
   pull-requests: read
 concurrency:
-  group: slack-release-${{ github.event.workflow_run.id || inputs.release_run_id }}
+  group: slack-release-status
   cancel-in-progress: false
 jobs:
   notify:
     if: >-
-      vars.SLACK_NOTIFY_ENABLED == 'true' &&
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'workflow_dispatch' ||
+      vars.SLACK_NOTIFY_ENABLED == 'true' && github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
        (github.event.workflow_run.head_branch == 'main' &&
         github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
@@ -30,20 +31,29 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: .delivery-state
+          key: delivery-status-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: delivery-status-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: python -m pip install 'cryptography==46.0.5'
-      - name: Announce version and change notes
+      - name: Check both apps and update concise Slack status
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_RUN_ID: ${{ github.event.workflow_run.id || inputs.release_run_id }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
           MAC_TESTER_URL: ${{ vars.MAC_TESTER_URL }}
+          TESTFLIGHT_TESTER_URL: ${{ vars.TESTFLIGHT_TESTER_URL }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-          TESTFLIGHT_EXTERNAL_GROUP_ID: fef3aa45-1839-492a-80c6-729735c12890
-          TESTFLIGHT_TESTER_URL: ${{ vars.TESTFLIGHT_TESTER_URL }}
-        run: python scripts/slack_release.py
+        run: python scripts/slack_delivery.py
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .delivery-state
+          key: delivery-status-${{ github.run_id }}-${{ github.run_attempt }}

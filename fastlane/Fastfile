@@ -88,12 +88,13 @@ platform :mac do
     upload_to_testflight(
       api_key: key, app_identifier: "jp.kanpeki.prototype.mac", apple_id: "6811774996",
       app_platform: "osx", pkg: File.expand_path("../dist/KanpekiMac.pkg", __dir__),
-      app_version: "0.1.0", build_number: "#{ENV.fetch('GITHUB_RUN_NUMBER')}.#{ENV.fetch('GITHUB_RUN_ATTEMPT')}.0",
+      app_version: get_version_number(xcodeproj: "Kanpeki.xcodeproj", target: "KanpekiMac"),
+      build_number: ENV.fetch("RELEASE_BUILD_NUMBER"),
       groups: ["7d3f3f2e-7cb0-4123-a4df-2a1b52ef934b"],
       distribute_external: true, notify_external_testers: true, submit_beta_review: true,
       skip_waiting_for_build_processing: false, wait_processing_timeout_duration: 1800,
       wait_processing_interval: 30, expire_previous_builds: false,
-      changelog: "Mac版をTestFlightに対応。PowerPoint画面・PPTX原稿の同期と、iPhoneからの前へ／次へを確認してください。"
+      changelog: File.read(File.expand_path("../docs/TESTFLIGHT_NOTES.txt", __dir__))
     )
   end
 end

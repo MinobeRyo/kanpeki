@@ -25,3 +25,5 @@ fastlane/README.md
 *.cer
 *.key
 *.certSigningRequest
+
+.delivery-state/
