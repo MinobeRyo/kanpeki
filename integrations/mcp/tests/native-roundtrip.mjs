@@ -13,7 +13,9 @@ try {
  const data=await client.callTool({name:'get_practice_report',arguments:{source:'analysis'}});
  assert.ok(!data.isError);assert.deepEqual(JSON.parse(data.content[0].text).facts,request.facts);
  const fact=request.facts.find(f=>f.text.includes('あの資料は予備評価です。'));assert.ok(fact);
- const submitted=await client.callTool({name:'submit_practice_analysis',arguments:{requestID:request.requestID,presentationID:request.presentationID,items:[{kind:'improvement',text:'予備評価の条件を説明してください。',evidenceIDs:[fact.id]}]}});
+ const item={kind:'improvement',text:'予備評価の条件を説明してください。',evidenceIDs:[fact.id]};
+ if(request.schemaVersion === 2) item.coaching={targetEvidenceID:fact.id,change:'予備評価の対象と条件を一文で補足してください。',rehearsal:'この説明だけを、条件を補ってもう一度話してください。'};
+ const submitted=await client.callTool({name:'submit_practice_analysis',arguments:{requestID:request.requestID,presentationID:request.presentationID,items:[item]}});
  assert.ok(!submitted.isError);assert.equal(JSON.parse(submitted.content[0].text).applied,false);
  console.log('Native request → MCP SDK → grounded result succeeded. Run native --verify-exchange next.');
 } finally {await client.close();}
