@@ -51,9 +51,12 @@ public struct AudioHostPanel: View {
                     }.padding(24).frame(maxWidth:.infinity,alignment:.leading).background(paper,in:RoundedRectangle(cornerRadius:20))
                     Label(model.status,systemImage:"waveform")
                     Menu("接続の操作") {
-                        Button("接続情報をコピー") { copy((model.addresses + [model.code]).joined(separator: "\n")) }
-                        Button("使用ライブラリ") { showNotices = true }
-                        Button("受信を停止して結果を削除") { confirmStop = true }
+                        Button("URLをコピー") { copy(model.addresses.first ?? "") }
+                        Button("コードをコピー") { copy(model.code) }
+                        Menu("その他") {
+                            Button("使用ライブラリ") { showNotices = true }
+                            Button("受信を停止して結果を削除") { confirmStop = true }
+                        }
                     }
 
                 }
