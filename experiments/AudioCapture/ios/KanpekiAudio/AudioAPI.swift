@@ -170,3 +170,17 @@ struct AudioAPI {
         }
     }
 }
+
+/// A bounded replay excerpt around a detected candidate; timestamps are recording-relative.
+struct AudioReviewRange {
+    let start: Double
+    let end: Double
+
+    init?(candidateStart: Double, candidateEnd: Double, duration: Double) {
+        guard candidateStart.isFinite, candidateEnd.isFinite, duration.isFinite,
+              duration > 0, candidateStart >= 0, candidateEnd >= candidateStart,
+              candidateStart < duration else { return nil }
+        start = max(0, candidateStart - 2)
+        end = min(duration, candidateEnd + 2)
+    }
+}
