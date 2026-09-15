@@ -110,6 +110,8 @@ struct PhoneScreen: View {
     @ObservedObject var link: PeerLink
     @State private var showDetails = false
     @State private var showAudioTrial = false
+    @State private var showPresentationAudio = false
+    @State private var audioAfterDetails = false
     @StateObject private var audioRecorder = RecorderModel()
     @State private var showScreenReview = false
     @State private var reviewAfterDetails = false
@@ -143,6 +145,13 @@ struct PhoneScreen: View {
                             isExpired: timer?.durationSeconds.map { timer!.elapsedSeconds >= $0 } ?? false,
                             isPresenting: timer?.phase == .running || timer?.phase == .paused,
                             isForeground: cameraScenePhase == .active, isConnected: fresh))
+                        .onChange(of: fresh) { _, isFresh in
+                            audioRecorder.observePresentation(id: model.state.timer?.sessionID,
+                                active: presentationAudioActive && isFresh)
+                        }
+                }
+                if audioRecorder.phase == .recording {
+                    Label("録音中 · 終了は「…」から", systemImage: "mic.fill").font(.caption)
                 }
                 if link.connectedName == nil {
                     GeometryReader { geometry in
@@ -230,7 +239,9 @@ struct PhoneScreen: View {
                             NavigationLink("その他") {
                                 List {
                                     Button("カメラ") { showCamera = true }
+                                        .disabled(audioRecorder.phase == .recording || audioRecorder.phase == .requesting)
                                     Menu("確認・接続") {
+                                        Button("発表の音声") { showPresentationAudio = true }
                                         Button("画面構成を試す") { reviewAfterDetails = true; showDetails = false }
                                         Button("音声を試す") { audioAfterDetails = true; showDetails = false }
                                             .disabled(camera.phase == .running || camera.phase == .preparing)
@@ -245,6 +256,13 @@ struct PhoneScreen: View {
                             }
                         }.navigationTitle("メニュー")
                             .toolbar { Button("閉じる") { showDetails = false } }
+                            .sheet(isPresented: $showPresentationAudio) {
+                                NavigationStack {
+                                    List { presentationAudioSection }
+                                        .navigationTitle("発表の音声")
+                                        .toolbar { Button("閉じる") { showPresentationAudio = false } }
+                                }
+                            }
                             .sheet(isPresented: $showCamera) {
                                 NavigationStack {
                                     CameraPanel(controller: camera, onContinueWithoutAnalysis: { showCamera = false })
@@ -259,16 +277,71 @@ struct PhoneScreen: View {
             AudioCaptureView(model: audioRecorder, logoName: "BrandMascot", onClose: { showAudioTrial = false })
         }
         .onChange(of: cameraScenePhase) { _, phase in
+            if phase == .background { audioRecorder.stopForInterruption() }
             if phase != .active { model.sendPointer(nil) }
             if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {
                 camera.stop(interrupted: true)
             }
         }
-        .onDisappear { camera.stop(); model.sendPointer(nil) }
+        .onDisappear { camera.stop(); model.sendPointer(nil); audioRecorder.stopForInterruption() }
+        .onChange(of: model.state.timer, initial: true) { _, _ in
+            audioRecorder.observePresentation(id: model.state.timer?.sessionID, active: presentationAudioActive)
+        }
+        .onChange(of: link.connectedName) { _, _ in
+            audioRecorder.observePresentation(id: model.state.timer?.sessionID, active: presentationAudioActive)
+        }
         .modifier(PresentationResultsObserver(snapshot: model.state.timer, connected: link.connectedName != nil,
             camera: camera, association: $presentationResult))
         .onChange(of: model.state.timer?.phase) { _, phase in
             if phase == .ended { camera.stop() }
+        }
+    }
+
+    private var presentationAudioActive: Bool {
+        link.connectedName != nil && (model.state.timer?.phase == .running || model.state.timer?.phase == .paused)
+    }
+
+    private var presentationAudioSection: some View {
+        Section("発表の音声 · このiPhone") {
+            if audioRecorder.phase == .recording {
+                Button("録音を終了") { audioRecorder.stop() }
+                Text("発表終了・切断・バックグラウンド移行で停止")
+            } else if audioRecorder.phase == .requesting {
+                ProgressView("マイクを準備中")
+                Button("録音開始を取り消す") { audioRecorder.stopForInterruption() }
+            } else if audioRecorder.phase == .ready && presentationAudioActive {
+                Button("この発表の録音をはじめる") {
+                    guard presentationAudioActive, let id = model.state.timer?.sessionID,
+                          model.timerReceivedAt.map({ TimerClock.now - $0 < 3 }) == true else { return }
+                    camera.stop()
+                    Task {
+                        guard presentationAudioActive, model.state.timer?.sessionID == id else { return }
+                        await audioRecorder.start(presentationID: id, canStart: {
+                            AudioRecordingIdentity.canStart(presentationID: id, currentID: model.state.timer?.sessionID,
+                                active: presentationAudioActive && cameraScenePhase == .active,
+                                receivedAt: model.timerReceivedAt, now: TimerClock.now)
+                        })
+                    }
+                }
+                Text("カメラを停止して録音。送信は確認後。")
+            }
+            if audioRecorder.identity.belongs(to: model.state.timer?.sessionID) {
+                if let error = audioRecorder.error { Text(error).font(.footnote) }
+                if let notice = audioRecorder.notice { Text(notice).font(.footnote) }
+                if audioRecorder.hasRecording {
+                    if let report = audioRecorder.report {
+                        Text("録音時間 \(report.duration, specifier: "%.1f")秒 · この発表に関連する音声結果")
+                        Text("フィラー候補：\(report.fillerCandidates.map { String($0.count) } ?? "未計測")")
+                    }
+                    Button("分析・結果") { showPresentationAudio = false; audioAfterDetails = true; showDetails = false }
+                }
+            } else if audioRecorder.hasRecording {
+                Text("別の録音があります。「音声を試す」で確認してください。")
+            } else if !presentationAudioActive {
+                Text("発表開始後に録音できます")
+            }
+            Text("Macとの結果同期は未対応")
+                .font(.footnote)
         }
     }
 
