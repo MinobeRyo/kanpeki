@@ -14,6 +14,8 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     @Published var windows: [CaptureWindow] = []
     @Published var image: NSImage?
     @Published var sharing = false
+    @Published private(set) var needsScreenPermission = !CGPreflightScreenCaptureAccess()
+    @Published private(set) var refreshing = false
     @Published var message = "「ウィンドウを探す」で画面収録を許可してください"
     var onJPEG: ((Data) -> Void)?
     var onStopped: (() -> Void)?
@@ -27,7 +29,20 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     private var lastTime: TimeInterval = 0
     private var cachedJPEG: Data?
 
-    @MainActor func refreshWindows() async {
+    @MainActor func refreshWindows(requestPermission: Bool = false) async {
+        guard !refreshing else { return }
+        needsScreenPermission = !CGPreflightScreenCaptureAccess()
+        if needsScreenPermission {
+            guard requestPermission else { return }
+            _ = CGRequestScreenCaptureAccess()
+            needsScreenPermission = !CGPreflightScreenCaptureAccess()
+            guard !needsScreenPermission else {
+                message = "画面収録の許可が必要です。システム設定で許可した後、再読み込みしてください。"
+                return
+            }
+        }
+        refreshing = true
+        defer { refreshing = false }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
             windows = content.windows.filter {
@@ -35,6 +50,11 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
             }.map(CaptureWindow.init).sorted { $0.label < $1.label }
             message = windows.isEmpty ? "共有できるウィンドウがありません。スライドショーを開いてください" : "発表用スライドのウィンドウを選んでください（ノート表示画面に注意）"
         } catch { message = "画面取得に失敗しました。画面収録の許可を確認してください: \(error.localizedDescription)" }
+    }
+
+    @MainActor func openScreenPermissionSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     @MainActor func start(window: CaptureWindow) async {

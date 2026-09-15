@@ -118,9 +118,9 @@ struct PhoneScreen: View {
     @State private var showCamera = false
     @StateObject private var notifications = PresentationNotificationPresenter()
     @Environment(\.scenePhase) private var cameraScenePhase
-    private let ink = Color(red: 92/255, green: 102/255, blue: 115/255)
-    private let paper = Color(red: 249/255, green: 255/255, blue: 230/255)
-    private let mint = Color(red: 217/255, green: 235/255, blue: 213/255)
+    private let ink = BrandColor.ink
+    private let paper = BrandColor.paper
+    private let mint = BrandColor.mint
 
     var body: some View {
         NavigationStack {

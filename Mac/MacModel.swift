@@ -14,6 +14,9 @@ import UniformTypeIdentifiers
     @Published var events: [SlideObservation] = []
     @Published private(set) var timerReceivedAt: TimeInterval?
     @Published private(set) var timerFinishing = false
+    @Published private(set) var presentationStarting = false
+    @Published private(set) var preparationConnectionID = UUID()
+    private var presentationStartIntent: MacPresentationStart?
     private var presentationTimer = PresentationTimerAuthority()
     private let bridge: PresentationControlling = PowerPointBridge()
     private var timer: Timer?
@@ -45,6 +48,11 @@ import UniformTypeIdentifiers
         }
         link.onConnection = { [weak self] connected in
             guard let self else { return }
+            self.preparationConnectionID = UUID()
+            if self.presentationStarting, self.presentationStartIntent?.requiredConnectionID != nil {
+                self.errorMessage = "接続が変わったため開始を取り消しました。接続を確認するか、Macだけで始めるを選んでください。"
+                self.cancelPresentationStart()
+            }
             self.requests = RequestDeduplicator()
             self.resetPointer()
             self.invalidateFrames(newSession: true)
@@ -102,6 +110,72 @@ import UniformTypeIdentifiers
         state.message = window.isPowerPoint ? "プレビューを確認後、PowerPoint操作を有効にしてください" : "画面表示のみ対応。操作・原稿連携はPowerPointで利用できます"
         publishState()
         requestSnapshot()
+    }
+
+    var presentationStartReason: String? {
+        if presentationStarting { return "共有画面とスライドを確認しています…" }
+        if importing { return "資料の読み込みが終わるまでお待ちください" }
+        if timerFinishing { return "発表の終了処理を待っています" }
+        guard selectedWindowID != nil, capture.windows.contains(where: { $0.id == selectedWindowID }) else {
+            return "共有画面を選ぶと開始できます"
+        }
+        guard state.timer?.phase == .ready else { return "準備に戻ると次の発表を開始できます" }
+        if state.timer?.durationSeconds == nil { return "発表時間を調整すると開始できます" }
+        return nil
+    }
+
+    /// Called only by the explicit primary action. Capture permission is never requested on launch.
+    func beginPresentation(macOnly: Bool = false) async {
+        guard presentationStartReason == nil,
+              macOnly || link.connectedName != nil,
+              let window = capture.windows.first(where: { $0.id == selectedWindowID }),
+              let snapshot = state.timer else { return }
+        let intent = MacPresentationStart(windowID: window.id, documentPath: deck?.url.path,
+            timerSessionID: snapshot.sessionID, timerRevision: snapshot.revision,
+            requiresPowerPoint: window.isPowerPoint,
+            requiredConnectionID: macOnly ? nil : preparationConnectionID)
+        presentationStartIntent = intent
+        presentationStarting = true
+        errorMessage = nil
+        defer { presentationStartIntent = nil; presentationStarting = false }
+        await startSharing()
+        guard startIsCurrent(intent), capture.sharing else {
+            if startIsCurrent(intent) { errorMessage = capture.message }
+            await stopSharing(); return
+        }
+        if window.isPowerPoint {
+            enableControl()
+            guard monitoring && state.canControl else { await stopSharing(); return }
+        }
+        let deadline = TimerClock.now + 8
+        while startIsCurrent(intent), capture.sharing, state.frameReady != true, TimerClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        guard startIsCurrent(intent),
+              lastSnapshotAt.map({ TimerClock.now - $0 < 3 }) == true,
+              intent.canStart(activeIntentID: presentationStartIntent?.id,
+                connectionID: link.connectedName == nil ? nil : preparationConnectionID,
+                windowID: selectedWindowID, documentPath: deck?.url.path, timer: state.timer,
+                sharing: capture.sharing, frameReady: state.frameReady == true, hasImage: capture.image != nil,
+                controlsReady: monitoring && state.canControl) else {
+            if presentationStartIntent != nil { errorMessage = "開始できませんでした。共有画面・資料と画像更新を確認してください。タイマーは開始していません。" }
+            await stopSharing(); return
+        }
+        let current = presentationTimer.snapshot(at: TimerClock.now)
+        applyTimer(PresentationTimerCommand(sessionID: current.sessionID, revision: current.revision,
+            sequence: current.sequence, action: .start), fromPreparation: true)
+    }
+
+    private func startIsCurrent(_ intent: MacPresentationStart) -> Bool {
+        !Task.isCancelled && presentationStartIntent?.id == intent.id &&
+        (intent.requiredConnectionID == nil || (link.connectedName != nil && intent.requiredConnectionID == preparationConnectionID)) &&
+        intent.matches(windowID: selectedWindowID, documentPath: deck?.url.path, timer: state.timer)
+    }
+
+    func cancelPresentationStart() {
+        guard presentationStarting else { return }
+        presentationStartIntent = nil
+        Task { await stopSharing() }
     }
 
     func stopSharing() async {
@@ -277,6 +351,10 @@ import UniformTypeIdentifiers
                       monitoring == (observed != nil) else { return }
                 guard let jpeg, lease.accepts(current: state.frameIdentity, now: TimerClock.now) else {
                     invalidateFrames()
+                    if presentationStarting {
+                        presentationStartIntent = nil
+                        errorMessage = "共有画像の確認に失敗したため、発表開始を取り消しました。"
+                    }
                     publishState()
                     return
                 }
@@ -289,7 +367,10 @@ import UniformTypeIdentifiers
                         return
                     }
                 }
-                capture.image = NSImage(data: jpeg)
+                guard let image = NSImage(data: jpeg) else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                capture.image = image
                 state.frameReady = true
                 lastSnapshotAt = TimerClock.now
                 capture.message = monitoring ? "ページ観測に合わせて画像更新 · JPEG · 音声なし" : "共有画像更新 · JPEG · 音声なし"
@@ -299,6 +380,10 @@ import UniformTypeIdentifiers
                 guard !Task.isCancelled, snapshotRequests.activeID == requestID, state.frameIdentity == identity else { return }
                 invalidateFrames()
                 state.message = "画像更新を待っています。共有状態を確認してください"
+                if presentationStarting {
+                    presentationStartIntent = nil
+                    errorMessage = "共有画像を確認できないため、発表開始を取り消しました。"
+                }
                 publishState()
             }
         }
@@ -316,9 +401,11 @@ import UniformTypeIdentifiers
             sequence: snapshot.sequence, action: action, durationSeconds: duration))
     }
 
-    private func applyTimer(_ command: PresentationTimerCommand) {
+    private func applyTimer(_ command: PresentationTimerCommand, fromPreparation: Bool = false) {
         guard !timerFinishing else { publishState(); return }
-        guard command.action != .start || capture.sharing else { publishState(); return }
+        guard !presentationStarting || fromPreparation else { publishState(); return }
+        guard command.action != .start || (capture.sharing && state.frameReady == true &&
+            (sharedWindow?.isPowerPoint != true || (monitoring && state.canControl))) else { publishState(); return }
         let applied = presentationTimer.apply(command, at: TimerClock.now)
         if applied && command.action == .end { timerFinishing = true }
         publishState()
