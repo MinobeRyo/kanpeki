@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>顔の向きとうなずき候補を端末内で解析します。映像は保存しません。</string>
+	<key>NSMotionUsageDescription</key>
+	<string>端末の揺れによるうなずきの誤検出を抑えます。</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ja</string>
 	<key>CFBundleDisplayName</key>

@@ -29,3 +29,5 @@
 ## 並行作業を始める
 
 [worktreeの作成・一覧・片付け](docs/WORKTREES.md)。担当Issueごとに `python3 scripts/team.py start 番号 作業名`、作成済み一覧は `python3 scripts/team.py list`。
+
+映像解析はMac/iPhoneのカメラ補助パネルに実装。[カメラ仕様](specs/CAMERA_ANALYSIS.md)と[開発・検証手順](docs/CAMERA_DEVELOPMENT.md)を参照。
