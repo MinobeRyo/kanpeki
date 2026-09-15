@@ -5,7 +5,7 @@ import subprocess
 
 root = Path(__file__).resolve().parents[1]
 s = (root / 'SlidePacer/ContentView.swift').read_text()
-models = s[s.index('@Generable(description: "1枚'):s.index('enum OllamaClient')]
+models = s[s.index('struct SlideWeight:'):s.index('enum OllamaClient')]
 models = re.sub(r'@(?:Guide|Generable)(?:\([^\n]*\))?\n', '', models)
 slide = s[s.index('struct SlideInput:'):s.index('// MARK: - JSON取り込み用モデル')]
 mcp_source = (root / 'SlidePacer/MCPPreparation.swift').read_text()

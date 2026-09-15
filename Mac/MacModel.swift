@@ -508,6 +508,24 @@ import UniformTypeIdentifiers
         state.pointerSessionID = UUID()
     }
 
+    private var audioConnection: PresentationAudioConnection?
+    private var practicing = false
+    var preparationFolder: URL? { mcpFolder }
+
+    func updateAudioConnection(address: String?, token: String) {
+        let connection = address.map { PresentationAudioConnection(address: $0, token: token) }
+        audioConnection = connection?.isValid == true ? connection : nil
+        publishState()
+    }
+
+    func beginPractice() {
+        guard state.timer?.phase == .ready, !timerFinishing, !presentationStarting,
+              !importing, !openingDocument, link.connectedName != nil, audioConnection != nil else { return }
+        if state.timer?.durationSeconds == nil { timerAction(.configure, duration: 300) }
+        practicing = true
+        timerAction(.start, duration: nil)
+    }
+
     func timerAction(_ action: PresentationTimerAction, duration: Double?) {
         let snapshot = presentationTimer.snapshot(at: TimerClock.now)
         applyTimer(PresentationTimerCommand(sessionID: snapshot.sessionID, revision: snapshot.revision,
@@ -517,9 +535,10 @@ import UniformTypeIdentifiers
     private func applyTimer(_ command: PresentationTimerCommand, fromPreparation: Bool = false) {
         guard !timerFinishing else { publishState(); return }
         guard !presentationStarting || fromPreparation else { publishState(); return }
-        guard command.action != .start || (capture.sharing && state.frameReady == true &&
+        guard command.action != .start || (practicing && link.connectedName != nil && audioConnection != nil) || (capture.sharing && state.frameReady == true &&
             (sharedWindow?.isPowerPoint != true || (monitoring && state.canControl))) else { publishState(); return }
         let applied = presentationTimer.apply(command, at: TimerClock.now)
+        if applied && command.action == .reset { practicing = false }
         if applied && command.action == .end { timerFinishing = true }
         publishState()
         if applied && command.action == .end {
@@ -533,6 +552,8 @@ import UniformTypeIdentifiers
 
     private func publishState() {
         let now = TimerClock.now
+        state.audioConnection = audioConnection
+        state.isPractice = practicing
         state.timer = presentationTimer.snapshot(at: now)
         state.timer?.isFinishing = timerFinishing
         if state.timer?.phase != .ready { preparationNotes.cancel() }
@@ -570,6 +591,10 @@ import UniformTypeIdentifiers
         panel.prompt = "このフォルダーで連携"
         panel.message = "MCPに指定した共有フォルダーを選びます。読み込んだ資料・ノート・発表状況と、この発表の音声認識結果・カメラ集計値をChatGPTから取得できます。"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        configureMCP(folder: url)
+    }
+
+    func configureMCP(folder url: URL) {
         stopMCP()
         mcpFolder = url; mcpScoped = url.startAccessingSecurityScopedResource()
         mcpWrittenDeckVersion = nil
@@ -746,7 +771,7 @@ import UniformTypeIdentifiers
         return facts
     }
 
-    func requestPracticeAnalysis() {
+    func requestPracticeAnalysis(copyPrompt: Bool = true) {
         guard let folder = mcpFolder, let timer = state.timer, timer.phase == .ended, !timerFinishing else {
             practiceAnalysisStatus = "共有を開始し、発表終了後に分析を依頼してください"
             return
@@ -766,8 +791,10 @@ import UniformTypeIdentifiers
             practiceRequest = request
             practiceAnalysisStatus = "ChatGPTからの分析結果を待っています"
             try pollPracticeAnalysis(folder: folder)
+            if copyPrompt {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString("カンペきのMCPで get_practice_report(source: analysis) を読み、この発表で次に直す一か所を優先して分析してください。改善は最大3件。各改善に根拠IDとcoaching（targetEvidenceID・具体的なchange・次の練習で確認するrehearsal）を付けます。取得済みの根拠とcoachingContextを確認し、未計測や別時計を混ぜず、材料が足りなければ限界を返してください。submit_practice_analysisで返し、get_analysis_status(kind: practice)で反映を確認してください。依頼ID: \(request.requestID.uuidString)", forType: .string)
+            }
         } catch { invalidatePracticeAnalysis(); practiceAnalysisStatus = "分析依頼を保存できませんでした: \(error.localizedDescription)" }
         publishState()
     }

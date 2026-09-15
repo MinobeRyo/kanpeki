@@ -12,6 +12,12 @@ struct AudioCaptureView: View {
     @ObservedObject var model: RecorderModel
     var logoName = "Logo"
     var onClose: (() -> Void)? = nil
+    var pairedAddress: String? = nil
+    var pairedToken: String? = nil
+    var requiresPairedConnection = false
+    var startRecording: (() -> Void)? = nil
+    private var targetAddress: String { pairedAddress ?? address }
+    private var targetToken: String { pairedToken ?? token }
     @AppStorage("macAddress") private var address = "http://Mac名.local:8765"
     @State private var token = ""
     @State private var confirmDiscard = false
@@ -30,7 +36,11 @@ struct AudioCaptureView: View {
                         }
                     }
                     if model.phase == .ready || model.phase == .recorded {
-                        connectionCard
+                        if pairedAddress != nil {
+                            Label("接続したMacで音声を分析します", systemImage: "checkmark.circle")
+                        } else if requiresPairedConnection {
+                            Text("Macで音声の受信を開始してください。接続情報は自動で受け取ります。")
+                        } else { connectionCard }
                     }
                     recordingCard
                     if let message = model.notice { Label(message, systemImage: "info.circle").font(.footnote) }
@@ -102,12 +112,12 @@ struct AudioCaptureView: View {
             } else if model.phase == .ready {
                 Text("まずは1分、いつものように話してみよう。\n最大15分まで録音できます。")
                     .font(.subheadline).multilineTextAlignment(.center)
-                Button { Task { await model.start() } } label: { Label("録音をはじめる", systemImage: "mic.fill").frame(maxWidth: .infinity) }.buttonStyle(PrimaryButton())
+                Button { if let startRecording { startRecording() } else { Task { await model.start() } } } label: { Label("録音をはじめる", systemImage: "mic.fill").frame(maxWidth: .infinity) }.buttonStyle(PrimaryButton())
             } else {
                 if model.phase == .recorded {
-                    Button { model.analyze(address: address, token: token) } label: {
+                    Button { model.analyze(address: targetAddress, token: targetToken) } label: {
                         Label("Macで分析する・再取得", systemImage: "waveform").frame(maxWidth: .infinity)
-                    }.buttonStyle(PrimaryButton())
+                    }.buttonStyle(PrimaryButton()).disabled(requiresPairedConnection && pairedAddress == nil)
                 }
                 Button("録音を破棄して準備に戻る") { confirmDiscard = true }.font(.subheadline)
             }

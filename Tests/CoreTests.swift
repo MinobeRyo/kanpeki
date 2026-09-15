@@ -8,6 +8,16 @@ import Foundation
         print("PASS: \(description)")
     }
     static func main() throws {
+        var audioState = PresentationState()
+        audioState.audioConnection = PresentationAudioConnection(address: "http://192.168.1.10:8765", token: String(repeating: "a", count: 32))
+        let audioWire = try JSONEncoder().encode(WireMessage(kind: "state", state: audioState))
+        expect(WireCodec.decode(audioWire)?.state?.audioConnection == audioState.audioConnection, "paired audio endpoint survives state roundtrip")
+        for address in ["https://example.com:8765", "http://127.0.0.1:8765", "http://8.8.8.8:8765", "http://192.168.1.10:8765/path", "http://user@192.168.1.10:8765"] {
+            audioState.audioConnection = PresentationAudioConnection(address: address, token: String(repeating: "a", count: 32))
+            expect(WireCodec.decode(try! JSONEncoder().encode(WireMessage(kind: "state", state: audioState))) == nil, "reject invalid audio destination: " + address)
+        }
+        audioState.audioConnection = nil
+        expect(WireCodec.decode(try! JSONEncoder().encode(WireMessage(kind: "state", state: audioState)))?.state?.audioConnection == nil, "receiver stop removes paired endpoint")
         try testSlidePointer()
         try testSlideFrames()
         let folder = URL(fileURLWithPath: CommandLine.arguments[1])

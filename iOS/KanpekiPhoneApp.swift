@@ -136,6 +136,8 @@ struct PhoneScreen: View {
     @State private var showQRScanner = false
     @State private var showAudioTrial = false
     @State private var showPresentationAudio = false
+    @State private var showPracticeFeedback = false
+    @State private var confirmNewPractice = false
     @StateObject private var audioRecorder = RecorderModel()
     @State private var showScreenReview = false
     @State private var reviewAfterDetails = false
@@ -212,6 +214,7 @@ struct PhoneScreen: View {
                         }
                     }
                 } else {
+                    practiceControls
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             Label("Macと接続中", systemImage: "link").font(.caption)
@@ -312,7 +315,24 @@ struct PhoneScreen: View {
         }.tint(ink).preferredColorScheme(.light)
         .fullScreenCover(isPresented: $showScreenReview) { ScreenReview() }
         .fullScreenCover(isPresented: $showAudioTrial) {
-            AudioCaptureView(model: audioRecorder, logoName: "BrandMascot", onClose: { showAudioTrial = false })
+            AudioCaptureView(model: audioRecorder, logoName: "BrandMascot", onClose: { showAudioTrial = false },
+                pairedAddress: model.state.audioConnection?.address, pairedToken: model.state.audioConnection?.token,
+                requiresPairedConnection: audioRecorder.identity.presentationID != nil,
+                startRecording: presentationAudioActive ? { startPracticeRecording() } : nil)
+        }
+        .alert("前の録音を破棄して、新しく録音しますか？", isPresented: $confirmNewPractice) {
+            Button("破棄して録音", role: .destructive) {
+                guard presentationAudioActive else { return }
+                audioRecorder.discard(); startPracticeRecording()
+            }
+            Button("戻る", role: .cancel) { }
+        } message: { Text("前の録音は聞き直せなくなります。Macへ送信済みの結果は残ります。") }
+        .sheet(isPresented: $showPracticeFeedback) {
+            NavigationStack {
+                ScrollView { PracticeFeedbackView(result: model.state.practiceAnalysis).padding() }
+                    .navigationTitle("AIの振り返り")
+                    .toolbar { Button("戻る") { showPracticeFeedback = false } }
+            }
         }
         .onChange(of: cameraScenePhase) { _, phase in
             if phase == .background { audioRecorder.stopForInterruption() }
@@ -337,6 +357,55 @@ struct PhoneScreen: View {
             camera: camera, association: $presentationResult))
         .onChange(of: model.state.timer?.phase) { _, phase in
             if phase == .ended { camera.stop() }
+        }
+    }
+
+    @ViewBuilder private var practiceControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if presentationAudioActive {
+                if audioRecorder.phase == .recording {
+                    Button("録音と練習を終了") {
+                        audioRecorder.stop(); model.timerAction(.end, duration: nil)
+                    }.buttonStyle(BrandPrimaryButtonStyle())
+                } else if audioRecorder.phase == .ready {
+                    Button("録音を始める", action: startPracticeRecording).buttonStyle(BrandPrimaryButtonStyle())
+                } else if audioRecorder.phase == .requesting { ProgressView("マイクを準備しています") }
+                else if !audioRecorder.identity.belongs(to: model.state.timer?.sessionID), audioRecorder.hasRecording {
+                    Button("新しい練習を録音") { confirmNewPractice = true }.buttonStyle(BrandPrimaryButtonStyle())
+                }
+            } else if model.state.timer?.phase == .ready {
+                Text(model.state.audioConnection == nil ? "Macの「練習する」で音声を準備" : "音声の接続準備ができました。Macで練習を開始")
+                    .font(.callout)
+            }
+            if audioRecorder.identity.belongs(to: model.state.timer?.sessionID) {
+                if audioRecorder.phase == .recorded {
+                    Button("Macで分析する") {
+                        guard let connection = model.state.audioConnection else { return }
+                        audioRecorder.analyze(address: connection.address, token: connection.token)
+                    }.buttonStyle(BrandPrimaryButtonStyle()).disabled(model.state.audioConnection == nil)
+                    if model.state.audioConnection == nil { Text("Macで音声の受信を再開してください").font(.caption) }
+                } else if audioRecorder.phase == .sending || audioRecorder.phase == .analyzing {
+                    ProgressView(audioRecorder.phase == .sending ? "Macに送信中" : "Macで音声を分析中")
+                    Button("待機を終了") { audioRecorder.cancelWaiting() }
+                } else if audioRecorder.phase == .complete {
+                    Button("話し方の結果・聞き直し") { showAudioTrial = true }.buttonStyle(BrandPrimaryButtonStyle())
+                    Button("AIの振り返り") { showPracticeFeedback = true }
+                    if model.state.practiceAnalysis == nil { Text("MacでAIに依頼すると、ここに改善提案が届きます").font(.caption) }
+                }
+                if let error = audioRecorder.error { Text(error).font(.caption).foregroundStyle(.red) }
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func startPracticeRecording() {
+        guard presentationAudioActive, let id = model.state.timer?.sessionID else { return }
+        camera.stop()
+        Task {
+            await audioRecorder.start(presentationID: id, canStart: {
+                AudioRecordingIdentity.canStart(presentationID: id, currentID: model.state.timer?.sessionID,
+                    active: presentationAudioActive && cameraScenePhase == .active,
+                    receivedAt: model.timerReceivedAt, now: TimerClock.now)
+            })
         }
     }
 

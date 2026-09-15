@@ -37,7 +37,7 @@ enum MacSetupStep: Equatable {
 }
 
 // Navigation owns only destinations. Going back never resets a presentation or receiver.
-enum MacDestination: Equatable { case home, presentation, connection, analysis, audio }
+enum MacDestination: Equatable { case home, presentation, connection, analysis, audio, practice }
 struct MacNavigation {
     private(set) var history: [MacDestination] = [.home]
     var current: MacDestination { history.last ?? .home }

@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - "Mac/**"
+      - "apps/SlidePacer/SlidePacer/**"
+      - "Tests/IntegratedPracticeTests.swift"
+      - "scripts/check_integrated_practice.py"
       - "iOS/**"
       - "experiments/AudioCapture/ios/**"
       - "Shared/**"
@@ -48,6 +51,9 @@ jobs:
           gem install xcodeproj -v 1.27.0 --no-document
           ruby Tests/test_signing.rb
       - run: bash scripts/check.sh "${{ matrix.check }}"
+      - if: matrix.check == 'mac'
+        name: Check integrated rehearsal lifecycle
+        run: python3 scripts/check_integrated_practice.py
       - if: matrix.check == 'core' && hashFiles('Package.swift') != ''
         run: swift test
       - if: matrix.check == 'core'

@@ -18,6 +18,8 @@ struct PresentationState: Codable, Equatable {
     var analysisSharingID: UUID? = nil
     var practiceAnalysis: PracticeAnalysisResult? = nil
     var timer: PresentationTimerSnapshot? = nil
+    var audioConnection: PresentationAudioConnection? = nil
+    var isPractice: Bool? = nil
 
     var allowsSlideInteraction: Bool {
         timer.map { $0.phase == .running || $0.phase == .paused } ?? true
@@ -55,6 +57,7 @@ enum WireCodec {
               let value = try? JSONDecoder().decode(WireMessage.self, from: data),
               value.version == 1, ["control", "state", "frameAck", "timerControl", "pointer", "analysisEvidence"].contains(value.kind),
               value.state?.timer?.isValid != false,
+              value.state?.audioConnection?.isValid != false,
               value.state?.practiceAnalysis?.isValid != false,
               (value.state?.practiceAnalysis == nil || value.state?.practiceAnalysis?.presentationID == value.state?.timer?.sessionID),
               value.analysisEvidence?.isValid != false,
@@ -113,5 +116,23 @@ struct RequestDeduplicator {
         ids.append(id)
         if ids.count > 256 { ids.removeFirst(ids.count - 256) }
         return true
+    }
+}
+
+// Sent only over the approved encrypted peer connection; never persisted in preferences.
+struct PresentationAudioConnection: Codable, Equatable {
+    let address: String
+    let token: String
+    var isValid: Bool {
+        guard address.utf8.count <= 256, (16...128).contains(token.utf8.count),
+              token.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-_".contains($0)) }),
+              let url = URLComponents(string: address), url.scheme == "http", url.user == nil,
+              url.password == nil, url.query == nil, url.fragment == nil,
+              url.path.isEmpty, let port = url.port, (1024...65535).contains(port),
+              let host = url.host else { return false }
+        let parts = host.split(separator: ".").compactMap { Int($0) }
+        guard parts.count == 4, parts.allSatisfy({ (0...255).contains($0) }) else { return false }
+        return parts[0] == 10 || (parts[0] == 192 && parts[1] == 168) ||
+            (parts[0] == 172 && (16...31).contains(parts[1])) || (parts[0] == 169 && parts[1] == 254)
     }
 }

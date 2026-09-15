@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import FoundationModels
 import UniformTypeIdentifiers
 import Compression
 #if canImport(UIKit)
@@ -316,49 +315,27 @@ struct ImportPayload: Decodable {
 }
 
 // MARK: - LLM出力モデル
-
-@Generable(description: "1枚のスライドに対する時間配分の評価")
 struct SlideWeight: Codable {
-    @Guide(description: "スライド番号（1始まり）")
     let slideIndex: Int
-
-    @Guide(description: "重要度スコア。0.0〜1.0の範囲。1.0が最重要")
     let importanceScore: Double
-
-    @Guide(description: "推奨時間（秒）")
     let recommendedSeconds: Int
-
-    @Guide(description: "この配分にした理由。日本語で1〜2文")
     let reason: String
-
-    @Guide(description: "説明の詳しさ。詳しく・要点のみ・省略のいずれか")
     let treatment: String
-    @Guide(description: "このページで必ず伝える要点。省略時は空文字")
     let talkingPoints: String
-    @Guide(description: "今回は話さない内容とその理由")
     let omittedContent: String
-    @Guide(description: "選択した内容だけの発話原稿。省略時は空文字。資料にない事実を追加しない")
     let speakingScript: String
 }
-
-@Generable(description: "発表全体の時間配分プラン")
 struct WeightingPlan: Codable {
-    @Guide(description: "各スライドの時間配分結果")
     let slides: [SlideWeight]
-
-    @Guide(description: "全体の配分方針。日本語で1〜2文")
     let overallStrategy: String
 }
 
 // ページ単位の読解と、全体の時間制約を分離する。
-@Generable
 struct EditorialBrief: Codable {
     let core: String
     let detail: String
     let omit: String
-    @Guide(description: "title/problem/overview/solution/mechanism/value/closing")
     let role: String
-    @Guide(description: "発表全体への貢献。1〜5")
     let priority: Int
 }
 
@@ -372,8 +349,6 @@ struct SourcePoint: Codable {
     let slideIndex: Int
     let text: String
 }
-
-@Generable
 struct ExtractiveSelection: Codable {
     let coreIDs: [String]
     let detailIDs: [String]
@@ -385,8 +360,6 @@ struct PageSelection: Codable {
     let slideIndex: Int
     let selection: ExtractiveSelection
 }
-
-@Generable
 struct DeckDirection: Codable {
     let focusPages: [Int]
     let supportingPages: [Int]
@@ -1159,6 +1132,7 @@ private struct WholeRowDisclosureStyle: DisclosureGroupStyle {
 }
 
 struct ContentView: View {
+    var sharedFolder: URL? = nil
     @State private var theme: String = ""
     @State private var totalMinutes: Double = 10
     @State private var presentationGoal = ""
@@ -1304,6 +1278,13 @@ struct ContentView: View {
             }
         }
         #endif
+        }
+            .task {
+            if let sharedFolder, mcp.folder == nil {
+                mcp.useFolder(sharedFolder)
+                do { slides = try mcp.loadMainDeck(); invalidateAnalysis() }
+                catch { reportMessage = error.localizedDescription }
+            }
         }
     }
 
