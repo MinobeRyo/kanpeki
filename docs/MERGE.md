@@ -5,7 +5,7 @@
 
 1. `git status --short`で他の作業を上書きしないことを確認する。
 2. `git fetch origin main`、`git show origin/main:AGENTS.md`で最新ルールを確認。必要に応じて自分のbranchへmainを通常mergeする。共有worktreeのcheckoutを勝手に変えない。
-3. 対象差分を読み、変更に必要なテストを実施。Shared通信契約なら両アプリ、通知なら送信条件・短さ・秘密情報の扱いを確認。
+3. 対象差分を読み、変更に必要なテストを実施。Shared通信契約なら両アプリ、通知なら送信条件・短さ・秘密情報の扱いを確認。docs/DOCUMENTATION_WORKFLOW.mdに従い関連文書・STATUS/READMEへの影響、PRのDocs-Impact/Docs-Reason宣言を確認する。機能更新と文書の矛盾を残さず、未検証/未統合の区別もレビューする。
 4. `python3 scripts/merge_preflight.py PR番号`で現行ルールとmain、対象SHA、GitHubチェック、競合を確認。無効化された任意CIのskipと必須CIの未成功を区別する。取得失敗・未知のrulesetは原因を解消して再確認。
 5. 表示されたコミット固定のマージコマンドを実行する。force push、--admin、自己承認の偽装は不要。
 6. 複数PRは一つずつ。mainが更新されたら次のPRを更新して再確認。

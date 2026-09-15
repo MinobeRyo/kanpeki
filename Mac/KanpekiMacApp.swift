@@ -22,6 +22,7 @@ struct MacScreen: View {
     @State private var showAllWindows = false
     @State private var showGuide = true
     @State private var showDetails = false
+    @State private var showQR = false
     @State private var showScreenReview = false
     @StateObject private var camera = CameraController()
     @State private var presentationResult = PresentationResultAssociation()
@@ -40,9 +41,11 @@ struct MacScreen: View {
                 Label(link.connectedName == nil ? "iPhone未接続" : "iPhone接続済み", systemImage: "iphone")
                     .font(.callout)
                 Button("音声分析", systemImage: "waveform") { openWindow(id: "audio-analysis") }
-                Button("画面構成を試す") { showScreenReview = true }
-                Button { showDetails = true } label: { Image(systemName: "ellipsis").frame(width: 36, height: 36) }
-                    .accessibilityLabel("接続の詳細と記録")
+                Button("QRでつなぐ", systemImage: "qrcode") { showQR = true }.disabled(link.connectedName != nil)
+                Menu("その他") {
+                    Button("画面構成を試す") { showScreenReview = true }
+                    Button("接続の詳細と記録") { showDetails = true }
+                }
             }
             HStack(alignment: .top, spacing: 24) {
                 VStack(alignment: .leading, spacing: 16) {
@@ -90,6 +93,8 @@ struct MacScreen: View {
             }
         }.padding(24).frame(minWidth: 980, minHeight: 720)
             .background(mint).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
+            .task { if !link.running { link.start() } }
+            .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
                 VStack {
@@ -115,10 +120,10 @@ struct MacScreen: View {
             .onChange(of: model.state.timer?.phase) { _, phase in
                 if phase == .ended { camera.stop() }
             }
-            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitationName != nil }, set: { if !$0 { link.respondToInvitation(accept: false) } })) {
-                Button("許可") { link.respondToInvitation(accept: true) }
-                Button("拒否", role: .cancel) { link.respondToInvitation(accept: false) }
-            } message: { Text("\(link.invitationName ?? "iPhone") に共有画面と原稿を送ります。自分の端末名か確認してください。") }
+            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitation != nil && !showQR }, set: { _ in }), presenting: link.invitation) { invitation in
+                Button("許可") { link.respondToInvitation(accept: true, invitationID: invitation.id) }
+                Button("拒否", role: .cancel) { link.respondToInvitation(accept: false, invitationID: invitation.id) }
+            } message: { invitation in Text("\(invitation.name) に共有画面と原稿を送ります。自分の端末から接続を操作したか確認してください。") }
             .alert("確認が必要です", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
                 Button("OK") { model.errorMessage = nil }
             } message: { Text(model.errorMessage ?? "") }
