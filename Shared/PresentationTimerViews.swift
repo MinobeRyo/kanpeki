@@ -1,4 +1,96 @@
 import SwiftUI
+import KanpekiCamera
+
+/// Observe even while the optional results sheet/menu is closed.
+struct PresentationResultsObserver: ViewModifier {
+    let snapshot: PresentationTimerSnapshot?
+    let connected: Bool
+    @ObservedObject var camera: CameraController
+    @Binding var association: PresentationResultAssociation
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: snapshot, initial: true) { _, _ in observe() }
+            .onChange(of: connected) { _, _ in observe() }
+            .onChange(of: camera.result) { _, _ in observe() }
+    }
+
+    private func observe() {
+        let value = connected ? snapshot : nil
+        association.observe(sessionID: value?.sessionID,
+            phase: value.flatMap { PresentationResultAssociation.Phase(rawValue: $0.phase.rawValue) },
+            elapsedSeconds: value?.elapsedSeconds ?? 0, camera: camera.result, liveSummary: camera.summary)
+    }
+}
+
+struct PresentationResultsButton: View {
+    let association: PresentationResultAssociation
+    @ObservedObject var camera: CameraController
+    @State private var presented = false
+    @State private var confirmDelete = false
+    @State private var deletingID: UUID?
+
+    var body: some View {
+        if association.elapsedSeconds != nil {
+            Button { presented = true } label: { Label("発表の結果", systemImage: "checkmark.circle") }
+                .sheet(isPresented: $presented) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            HStack {
+                                Image("BrandMascot").resizable().scaledToFit().frame(width: 60, height: 60)
+                                Text("おつかれさまでした").font(.title2.bold())
+                            }
+                            if let elapsed = association.elapsedSeconds {
+                                Text("実測時間 \(PresentationTimerText.time(elapsed))").font(.title.bold()).monospacedDigit()
+                                Text("Macの発表タイマーで計測。一時停止した時間は含みません。")
+                                    .font(.footnote)
+                            }
+                            if let result = association.cameraResult(from: camera.result) {
+                                Text("この端末のカメラ · \(result.subject.title)").font(.headline)
+                                Text(result.status.message)
+                                if result.status == .finalizing { ProgressView("カメラ結果を確定中") }
+                                if result.summary.observableSeconds > 0 {
+                                    Text("判別できた時間：約\(result.summary.observableSeconds)秒")
+                                    if result.subject == .audience {
+                                        Text("うなずき候補のあった時間：\(result.summary.nodCandidateSeconds)秒")
+                                    }
+                                } else { Text("判別できた区間はありません。未計測は0点として評価しません。") }
+                                if result.summary.missingSeconds > 0 {
+                                    Text("未計測・判別できない時間：約\(result.summary.missingSeconds)秒")
+                                }
+                                Text("この発表に紐付いた最後のカメラ計測のみ。発表開始をこの端末で確認する前の集計は除外しています。候補の秒数は動作回数・人数ではありません。")
+                                    .font(.footnote)
+                                if let id = result.id, result.status != .finalizing,
+                                   result.status != .collecting, result.status != .preparing {
+                                    Button("カメラ結果を削除", role: .destructive) { deletingID = id; confirmDelete = true }
+                                }
+                            } else {
+                                Text("この端末のカメラ").font(.headline)
+                                Text("この発表に紐付く結果はありません。分析OFF・削除済み・関連付け未確認の結果は集計しません。")
+                            }
+                            DisclosureGroup("話し方") {
+                                Text("音声分析は未接続です。フィラー・間・改善候補はまだ表示できません。")
+                            }
+                            Text("カメラ結果は他端末と同期しません。画面確認モードのサンプルとは別の実測結果です。")
+                                .font(.footnote)
+                            Button("準備に戻る") { presented = false }.buttonStyle(.borderedProminent)
+                        }.padding(24).frame(maxWidth: 560, alignment: .leading)
+                    }
+                    .background(Color(red: 249/255, green: 1, blue: 230/255))
+                    .foregroundStyle(Color(red: 92/255, green: 102/255, blue: 115/255))
+                    .tint(Color(red: 92/255, green: 102/255, blue: 115/255))
+                    .preferredColorScheme(.light)
+                    #if os(macOS)
+                    .frame(width: 520, height: 620)
+                    #endif
+                    .confirmationDialog("このカメラ結果を削除しますか？ 元に戻せません。", isPresented: $confirmDelete, titleVisibility: .visible) {
+                        Button("結果を削除", role: .destructive) { if let id = deletingID { camera.deleteResult(id: id) } }
+                        Button("残す", role: .cancel) {}
+                    }
+                }
+        }
+    }
+}
 
 struct PresentationTimerStatus: View {
     let snapshot: PresentationTimerSnapshot?

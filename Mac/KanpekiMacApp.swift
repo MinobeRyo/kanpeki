@@ -18,6 +18,7 @@ struct MacScreen: View {
     @State private var showDetails = false
     @State private var showScreenReview = false
     @StateObject private var camera = CameraController()
+    @State private var presentationResult = PresentationResultAssociation()
     @State private var showCamera = false
     private let ink = Color(red: 92/255, green: 102/255, blue: 115/255)
     private let paper = Color(red: 249/255, green: 255/255, blue: 230/255)
@@ -100,6 +101,8 @@ struct MacScreen: View {
                 }.padding(24).frame(width: 520)
             }
             .onDisappear { camera.stop() }
+            .modifier(PresentationResultsObserver(snapshot: model.state.timer, connected: true,
+                camera: camera, association: $presentationResult))
             .onChange(of: model.state.timer?.phase) { _, phase in
                 if phase == .ended { camera.stop() }
             }
@@ -156,6 +159,7 @@ struct MacScreen: View {
                         send: { model.timerAction($0, duration: $1) })
                 }
                 Button { showCamera = true } label: { Label("カメラの設定・結果", systemImage: "video") }
+                PresentationResultsButton(association: presentationResult, camera: camera)
                 if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)").font(.caption) }
                 if showGuide {
                     HStack {
