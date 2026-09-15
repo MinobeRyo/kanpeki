@@ -42,6 +42,24 @@ class ExportTests(unittest.TestCase):
             with self.assertRaises(ValueError):e.export(self.config(),tmp)
             self.assertEqual(marker.read_text(),'valuable')
 
+    def test_exported_documentation_workflow_is_runnable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out=Path(tmp)/'new'
+            e.export(self.config(),out)
+            for name in ('scripts/documentation_check.py', 'Tests/test_documentation_check.py',
+                         'docs/DOCUMENTATION_WORKFLOW.md', '.github/workflows/documentation.yml'):
+                self.assertTrue((out/name).is_file(), name)
+            self.assertIn('Docs-Impact', (out/'AGENTS.md').read_text())
+            for script in ('merge_preflight.py', 'documentation_check.py'):
+                result=subprocess.run([sys.executable, 'scripts/'+script, '--help'], cwd=out,
+                                      capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            result=subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'Tests',
+                                   '-p', 'test_documentation_check.py'], cwd=out,
+                                  capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn('Ran 0 tests', result.stderr)
+
     def test_reject_source_and_code_in_configuration(self):
         for update in ({'repository':'MinobeRyo/kanpeki'}, {'members':['alice;rm']}, {'apple_team':"'; dangerous()"}, {'api_key':'secret'}):
             c=self.config();c.update(update)
