@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import sys
 import uuid
-from slack_release import post, plain, app_actions, discover_mac_download, brief
+from slack_release import post, plain, brief
 
 REPO='MinobeRyo/kanpeki'
 TEAM={'takurateruyoshi','ini-ei','MinobeRyo','mao-sonobe'}
@@ -34,14 +34,11 @@ def payload(event,channel):
         'blocks':[{'type':'header','text':plain(summary,150)},
                   {'type':'section','text':plain(issue.get('title',''),80)},
                   {'type':'section','text':plain(excerpt,200)},
-                  {'type':'actions','elements':[{'type':'button','text':plain('詳細を開く',70),'url':url}]+app_actions()}]}
+                  {'type':'actions','elements':[{'type':'button','text':plain('詳細を開く',70),'url':url},{'type':'button','text':plain('最新版の開き方',70),'url':f'https://github.com/{REPO}/blob/main/docs/TESTFLIGHT_TEAM.md'}]}]}
 
 def main():
     event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
     data=payload(event,os.environ['SLACK_CHANNEL_ID'])
-    if data is not None:
-        discover_mac_download()
-        data=payload(event,os.environ['SLACK_CHANNEL_ID'])
     if data is None:print('Not an authorized team progress report; skipped.');return
     result=post(data)
     print('Progress message posted; ts='+result['ts'])
