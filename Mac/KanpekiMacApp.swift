@@ -62,10 +62,10 @@ struct MacScreen: View {
                     HStack {
                         Button { model.move(.previous) } label: { Image(systemName: "chevron.left").frame(width: 36, height: 30) }
                             .accessibilityLabel("前のスライド")
-                            .disabled(model.state.frameReady != true || !model.state.canControl || model.state.slideIndex == 1)
+                            .disabled(model.state.frameReady != true || !model.state.canMoveSlide(.previous))
                         Button { model.move(.next) } label: { Image(systemName: "chevron.right").frame(width: 36, height: 30) }
                             .accessibilityLabel("次のスライド")
-                            .disabled(model.state.frameReady != true || !model.state.canControl || model.state.slideIndex == model.state.totalSlides)
+                            .disabled(model.state.frameReady != true || !model.state.canMoveSlide(.next))
                         Spacer()
                         Text(capture.sharing ? "共有中" : "共有前").font(.caption)
                     }
@@ -136,7 +136,7 @@ struct MacScreen: View {
                         Button("共有を停止") { Task { await model.stopSharing() } }
                     } else {
                         Button("共有を開始") { Task { await model.startSharing() } }
-                            .buttonStyle(BrandPrimaryButtonStyle()).disabled(model.selectedWindowID == nil)
+                            .buttonStyle(BrandPrimaryButtonStyle()).disabled(model.selectedWindowID == nil || model.timerFinishing)
                     }
                     if capture.sharing {
                         Text("発表用の画面か確認してください").font(.caption)

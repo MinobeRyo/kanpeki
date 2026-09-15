@@ -1,0 +1,12 @@
+ffconcat version 1.0
+file 'frames/mouth-closed.png'
+duration 0.3
+file 'frames/mouth-small.png'
+duration 0.12
+file 'frames/mouth-open.png'
+duration 0.18
+file 'frames/mouth-small-return.png'
+duration 0.12
+file 'frames/mouth-closed.png'
+duration 0.48
+file 'frames/mouth-closed.png'

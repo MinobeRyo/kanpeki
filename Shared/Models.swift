@@ -20,6 +20,16 @@ struct PresentationState: Codable, Equatable {
     var allowsSlideInteraction: Bool {
         timer.map { $0.phase == .running || $0.phase == .paused } ?? true
     }
+
+    func canMoveSlide(_ action: RemoteAction) -> Bool {
+        guard canControl, isSharing, allowsSlideInteraction,
+              let index = slideIndex, index >= 1, index <= totalSlides else { return false }
+        switch action {
+        case .previous: return index > 1
+        case .next: return index < totalSlides
+        case .refresh: return false
+        }
+    }
 }
 
 struct WireMessage: Codable {
