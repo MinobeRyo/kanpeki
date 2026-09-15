@@ -142,24 +142,24 @@ struct PresentationTimerPanel: View {
                         }.disabled(!fresh)
                         Button("発表開始") { send(.start, nil) }
                             .disabled(!fresh || !canStart || snapshot.durationSeconds == nil)
-                        if !canStart { Text("Macでスライド共有を開始してください。").font(.caption) }
-                        if snapshot.durationSeconds == nil { Text("時間を調整すると開始できます。").font(.caption) }
+                        if !canStart { Text("Macでスライドを共有").font(.caption) }
+                        if snapshot.durationSeconds == nil { Text("時間を設定してください").font(.caption) }
                     case .running, .paused:
                         Button(snapshot.phase == .running ? "一時停止" : "再開") {
                             send(snapshot.phase == .running ? .pause : .resume, nil)
                         }.disabled(!fresh)
                         Divider()
                         Button("発表を終了", role: .destructive) { endingSession = snapshot.sessionID }.disabled(!fresh)
-                        Text("時間が過ぎてもスライド操作は続けられます。").font(.caption)
+                        Text("時間後も操作できます").font(.caption)
                     case .ended:
                         Text("おつかれさまでした。経過時間 \(PresentationTimerText.time(snapshot.elapsedSeconds))")
                         Button("準備に戻る") { send(.reset, nil) }.disabled(!fresh)
                     }
                 } else {
-                    Text(connected ? "Macのタイマー情報を待っています。" : "Macに接続すると時間を設定できます。").font(.caption)
+                    Text(connected ? "Macのタイマー情報を待っています。" : "Macに接続してください").font(.caption)
                 }
                 if snapshot?.isFinishing == true { Text("発表を終了しています…").font(.caption) }
-                else if !fresh && snapshot != nil { Text("Macの最新状態を確認するまで時間操作はできません。").font(.caption) }
+                else if !fresh && snapshot != nil { Text("再接続を待っています").font(.caption) }
             }
         }
         .sheet(item: $adjustment) { draft in
@@ -198,14 +198,16 @@ struct TimeAdjustmentFlow: View {
     var canApply: () -> Bool = { true }
     let apply: (Double) -> Bool
     @Environment(\.dismiss) private var dismiss
-    @State private var minutes = ""
+    @State private var minutes = "5"
+    @State private var seconds = "0"
     @State private var reviewing = false
     @State private var rejected = false
 
     private var validSeconds: Double? {
-        guard let value = Double(minutes.trimmingCharacters(in: .whitespacesAndNewlines)),
-              value.isFinite, (1...1440).contains(value) else { return nil }
-        return value * 60
+        guard let minuteValue = Int(minutes), let secondValue = Int(seconds),
+              (0...1440).contains(minuteValue), (0...59).contains(secondValue) else { return nil }
+        let total = minuteValue * 60 + secondValue
+        return (60...86400).contains(total) ? Double(total) : nil
     }
 
     var body: some View {
@@ -223,32 +225,32 @@ struct TimeAdjustmentFlow: View {
                         if let seconds = validSeconds {
                             Text(PresentationTimerText.time(seconds)).font(.largeTitle.bold()).monospacedDigit()
                         }
-                        Text("時間切れを通知します。スライドは手動で進めます。").font(.callout)
+                        Text("時間になると通知").font(.callout)
                     } else {
-                        Text("発表は何分ですか？").font(.title2.bold())
+                        Text("発表時間").font(.title2.bold())
                         HStack {
                             TextField("例：5", text: $minutes).textFieldStyle(.roundedBorder)
                                 .accessibilityLabel("発表時間、分単位")
                                 #if os(iOS)
-                                .keyboardType(.decimalPad)
+                                .keyboardType(.numberPad)
                                 #endif
                             Text("分")
+                            TextField("0", text: $seconds).textFieldStyle(.roundedBorder)
+                                .accessibilityLabel("発表時間、秒")
+                                #if os(iOS)
+                                .keyboardType(.numberPad)
+                                #endif
+                            Text("秒")
                         }
-                        HStack {
-                            ForEach([3, 5, 10], id: \.self) { value in
-                                Button("\(value)分") { minutes = String(value) }.frame(minHeight: 44)
-                            }
-                        }
-                        Text("1〜1440分。小数も入力できます。").font(.caption).foregroundStyle(.secondary)
+                        if validSeconds == nil { Text("1分〜24時間で設定").font(.caption) }
                     }
-                    if isSample { Text("画面確認用。実際のタイマーには反映しません。").font(.caption) }
-                    if rejected { Text("設定の状態が変わりました。閉じて、もう一度調整してください。").font(.callout) }
+                    if isSample { Text("サンプル").font(.caption) }
+                    if rejected { Text("状態が変わりました。設定し直してください。").font(.callout) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
                 Image("BrandMascot").resizable().scaledToFit().frame(width: 48, height: 48)
                     .accessibilityHidden(true)
-                Text(reviewing ? "よければ適用してね" : "まずは時間を決めよう").font(.callout)
             }
             HStack {
                 if reviewing { Button("戻る") { reviewing = false; rejected = false }.frame(minHeight: 44) }
@@ -269,7 +271,7 @@ struct TimeAdjustmentFlow: View {
             }
             if reviewing {
                 TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-                    if !canApply() { Text("設定を確認できません。接続状態を確認し、閉じてやり直してください。").font(.caption) }
+                    if !canApply() { Text("接続を確認してください").font(.caption) }
                 }
             }
         }
@@ -278,7 +280,12 @@ struct TimeAdjustmentFlow: View {
         .foregroundStyle(Color(red: 92/255, green: 102/255, blue: 115/255))
         .tint(Color(red: 92/255, green: 102/255, blue: 115/255))
         .preferredColorScheme(.light)
-        .onAppear { if let initialSeconds { minutes = String(format: "%g", initialSeconds / 60) } }
+        .onAppear {
+            if let initialSeconds, initialSeconds.isFinite {
+                let total = Int(min(86400, max(60, initialSeconds.rounded())))
+                minutes = String(total / 60); seconds = String(total % 60)
+            }
+        }
         #if os(macOS)
         .frame(minWidth: 360, idealWidth: 440, minHeight: 460, idealHeight: 500)
         #endif

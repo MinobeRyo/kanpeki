@@ -8,8 +8,7 @@ struct ScreenReview: View {
     }
     @Environment(\.dismiss) private var dismiss
     @State private var step: Step = .connect
-    @State private var guide = true
-    @State private var page = 1
+        @State private var page = 1
     @State private var pointer: CGPoint?
     @State private var dragged = false
     @State private var showTranslation = false
@@ -26,15 +25,20 @@ struct ScreenReview: View {
                 Image("BrandMascot").resizable().scaledToFit().frame(width: 32, height: 32)
                 VStack(alignment: .leading) {
                     Text("画面構成を試す").font(.headline)
-                    Text("サンプル表示・接続や録音は行いません").font(.caption2)
+                    Text("サンプル・通信／録音なし").font(.caption2)
                 }
                 Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                    .accessibilityLabel("画面確認を終了")
+                Menu {
+                    ForEach(Step.allCases) { destination in
+                        Button(destination.rawValue) { step = destination }
+                    }
+                    Divider()
+                    Button("翻訳・原稿チェック") { showTranslation = true }
+                    Button("閉じる") { dismiss() }
+                } label: {
+                    Label(step.rawValue, systemImage: "ellipsis.circle").frame(minHeight: 44)
+                }.accessibilityLabel("画面メニュー")
             }
-            Picker("確認する画面", selection: $step) {
-                ForEach(Step.allCases) { Text($0.rawValue).tag($0) }
-            }.pickerStyle(.segmented)
             Group {
                 switch step {
                 case .connect: connection
@@ -56,7 +60,7 @@ struct ScreenReview: View {
         .sheet(isPresented: $showTranslation) {
             VStack(alignment: .leading, spacing: 24) {
                 Text("翻訳・原稿チェック").font(.title2.bold())
-                Text("この機能は準備中です。入力を求めず、使えるようになってから段階的に案内します。")
+                Text("準備中です")
                 Button("閉じる") { showTranslation = false }.buttonStyle(BrandPrimaryButtonStyle())
             }.padding(24)
             #if os(macOS)
@@ -70,18 +74,18 @@ struct ScreenReview: View {
     }
 
     private var connection: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Text("Macにつなぐ").font(.largeTitle.bold()).padding(.top, 24)
-                Text("近くのMacを選ぶ").font(.callout)
-                Image(systemName: "laptopcomputer").font(.system(size: 72)).padding(32)
-                    .frame(maxWidth: .infinity).background(paper, in: RoundedRectangle(cornerRadius: 24))
-                Button { step = .prepare } label: {
-                    Label("デモのMacで続ける", systemImage: "link").frame(maxWidth: .infinity, minHeight: 44)
-                }.buttonStyle(BrandPrimaryButtonStyle())
-                Text("実際の接続はホーム画面から行います。QR接続は今後の対応です。")
-                    .font(.caption).foregroundStyle(.secondary)
-                helper("Macでアプリを開いてね")
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 24)
+                    Image("BrandMascot").resizable().scaledToFit().frame(width: 100, height: 100)
+                    Text("Macにつなぐ").font(.largeTitle.bold())
+                    Button { step = .prepare } label: {
+                        Label("デモのMac", systemImage: "desktopcomputer").frame(maxWidth: .infinity, minHeight: 44)
+                    }.buttonStyle(BrandPrimaryButtonStyle())
+                    Text("接続の見本").font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 24)
+                }.frame(maxWidth: .infinity, minHeight: geometry.size.height)
             }
         }
     }
@@ -100,8 +104,6 @@ struct ScreenReview: View {
                             Image(systemName: "chevron.right")
                         }.frame(minHeight: 44)
                     }
-                    Divider()
-                    Button { showTranslation = true } label: { Label("翻訳・原稿チェック", systemImage: "text.bubble") }
                 }.padding(20).background(paper, in: RoundedRectangle(cornerRadius: 20))
                 helper("準備ができたら、ここだよ")
                 Button { step = .live } label: { Text("発表画面へ").frame(maxWidth: .infinity, minHeight: 44) }
@@ -144,7 +146,7 @@ struct ScreenReview: View {
                     .frame(maxWidth: .infinity).background(paper, in: RoundedRectangle(cornerRadius: 24))
                 Text("カメラ映像の配置見本").font(.headline)
                 Text("観測対象：視聴者").font(.callout)
-                Text("この画面では撮影しません。実際の撮影・結果はホームのカメラ設定から確認できます。")
+                Text("撮影なし・配置の見本")
                     .font(.caption).multilineTextAlignment(.center)
                 helper("スマホを動かない場所に置こう")
                 Button("発表画面へ戻る") { step = .live }.buttonStyle(BrandPrimaryButtonStyle())
@@ -159,19 +161,19 @@ struct ScreenReview: View {
                     Image("BrandMascot").resizable().scaledToFit().frame(width: 64, height: 64)
                     Text("おつかれさま！").font(.title.bold())
                 }
-                Text("以下は配置確認用のサンプルです。実測値ではありません。").font(.caption)
+                Text("サンプル結果・実測ではありません").font(.caption)
                 Picker("結果の種類", selection: $resultTab) {
                     Text("話し方").tag(0); Text("カメラ").tag(1)
-                }.pickerStyle(.segmented)
+                }.pickerStyle(.menu)
                 if resultTab == 0 {
                     resultRow("フィラー候補", value: "8回")
                     resultRow("無音の候補", value: "2か所")
                     Text("次は、結果を伝える前に一呼吸。").font(.title3.bold())
-                    Text("改善候補の表示例。自動分析は未接続です。").font(.caption)
+                    Text("分析は未接続です").font(.caption)
                 } else {
                     resultRow("頷きの候補", value: "記録例")
                     resultRow("顔の向き", value: "測定できない区間あり")
-                    Text("表情や顔の向きだけから、理解度や感情は判断しません。").font(.callout)
+                    Text("理解度・感情は判定しません").font(.callout)
                 }
                 Button { step = .prepare } label: { Text("もう一度準備する").frame(maxWidth: .infinity, minHeight: 44) }
                     .buttonStyle(BrandPrimaryButtonStyle())
@@ -184,18 +186,9 @@ struct ScreenReview: View {
             .padding(20).background(paper, in: RoundedRectangle(cornerRadius: 16))
     }
 
-    @ViewBuilder private func helper(_ text: String) -> some View {
-        if guide {
-            HStack {
-                Image("BrandMascot").resizable().scaledToFit().frame(width: 64, height: 64)
-                Text(text).font(.callout)
-                Spacer()
-                Button { guide = false } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                    .accessibilityLabel("案内を閉じる")
-            }
-        } else {
-            Button("案内を表示") { guide = true }.font(.caption)
-        }
+    private func helper(_ text: String) -> some View {
+        Image("BrandMascot").resizable().scaledToFit().frame(width: 56, height: 56)
+            .accessibilityHidden(true)
     }
 
     private var sampleSlide: ReviewSlide {

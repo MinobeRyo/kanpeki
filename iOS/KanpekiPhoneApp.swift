@@ -112,10 +112,11 @@ struct PhoneScreen: View {
     @State private var showDetails = false
     @State private var showQRScanner = false
     @State private var showAudioTrial = false
-    @State private var audioAfterDetails = false
+    @State private var showPresentationAudio = false
     @StateObject private var audioRecorder = RecorderModel()
     @State private var showScreenReview = false
     @State private var reviewAfterDetails = false
+    @State private var audioAfterDetails = false
     @StateObject private var camera = CameraController()
     @State private var presentationResult = PresentationResultAssociation()
     @State private var showCamera = false
@@ -153,32 +154,43 @@ struct PhoneScreen: View {
                 if audioRecorder.phase == .recording {
                     Label("録音中 · 終了は「…」から", systemImage: "mic.fill").font(.caption)
                 }
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if link.connectedName == nil {
-                            Text("Macにつなぐ").font(.title.bold())
-                            Text("Macで接続待機を開始してください。")
-                            Button(link.running ? "もう一度探す" : "近くのMacを探す") {
-                                model.stop(); link.start()
-                            }.buttonStyle(BrandPrimaryButtonStyle()).controlSize(.large)
-                            Button("QRでつなぐ", systemImage: "qrcode.viewfinder") { showQRScanner = true }.buttonStyle(.bordered)
-                            ForEach(link.availablePeers, id: \.self) { peer in
-                                Button { link.invite(peer) } label: {
-                                    Label(peer.displayName, systemImage: "desktopcomputer")
-                                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                }.buttonStyle(.bordered)
-                            }
-                            if !link.incompatiblePeers.isEmpty { Text("別の通信版のMacが見つかりました。両方のTestFlightを更新してください").font(.caption) }
-                            Button("画面構成を試す") { showScreenReview = true }.buttonStyle(.bordered)
-                            Button("音声を試す") { showAudioTrial = true }
-                                .buttonStyle(.bordered)
-                                .disabled(camera.phase == .running || camera.phase == .preparing)
-                            Text(link.status).font(.caption)
-                            HStack {
-                                Image("BrandMascot").resizable().scaledToFit().frame(width: 72, height: 72)
-                                Text("見つかったMacを選んでね").font(.callout)
-                            }.padding(.top)
-                        } else {
+                if link.connectedName == nil {
+                    GeometryReader { geometry in
+                        ScrollView {
+                            VStack(spacing: 24) {
+                                Spacer(minLength: 24)
+                                Image("BrandMascot").resizable().scaledToFit().frame(width: 100, height: 100)
+                                Text("Macにつなぐ").font(.largeTitle.bold())
+                                if !link.availablePeers.isEmpty {
+                                    Menu {
+                                        ForEach(link.availablePeers, id: \.self) { peer in
+                                            Button(peer.displayName) { link.invite(peer) }
+                                        }
+                                        Divider()
+                                        Button("探し直す") { model.stop(); link.start() }
+                                    } label: {
+                                        Label("Macを選ぶ", systemImage: "desktopcomputer")
+                                            .frame(maxWidth: .infinity, minHeight: 44)
+                                    }.buttonStyle(BrandPrimaryButtonStyle())
+                                }
+                                if link.availablePeers.isEmpty {
+                                    Button(link.running ? "探し直す" : "Macを探す") {
+                                        model.stop(); link.start()
+                                    }.buttonStyle(.bordered).controlSize(.large)
+                                }
+                                Button("QRでつなぐ", systemImage: "qrcode.viewfinder") { showQRScanner = true }
+                                    .buttonStyle(.bordered).controlSize(.large)
+                                Text(link.status).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                                if !link.incompatiblePeers.isEmpty {
+                                    Text("別の通信版のMacがあります。両方のアプリを更新してください").font(.caption)
+                                }
+                                Spacer(minLength: 24)
+                            }.frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                        }
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
                             Label("Macと接続中", systemImage: "link").font(.caption)
                             Text(model.state.title).font(.headline).lineLimit(2)
                             VStack(alignment: .leading, spacing: 12) {
@@ -188,8 +200,8 @@ struct PhoneScreen: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .textSelection(.enabled)
                             }.padding(20).background(paper, in: RoundedRectangle(cornerRadius: 20))
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 if camera.phase == .running {
                     Label("カメラ：\(camera.subject.title) · \(camera.summary.currentQuality)", systemImage: "video")
@@ -223,31 +235,41 @@ struct PhoneScreen: View {
                 }) {
                     NavigationStack {
                         List {
-                            Section("画面確認") {
-                                Button("画面構成を試す") { reviewAfterDetails = true; showDetails = false }
+                            NavigationLink("発表") {
+                                List {
+                                    PresentationResultsButton(association: presentationResult, camera: camera)
+                                    PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
+                                        connected: link.connectedName != nil, canStart: model.state.isSharing,
+                                        send: { model.timerAction($0, duration: $1) })
+                                }.navigationTitle("発表")
                             }
-                            Section("操作") {
-                                Text("スライドの右側をタップすると進み、左側で戻ります。")
-                                Text("スライド上で指を動かすとMacにポインターを表示します。指を離してもページは変わりません。")
+                            NavigationLink("その他") {
+                                List {
+                                    Button("カメラ") { showCamera = true }
+                                        .disabled(audioRecorder.phase == .recording || audioRecorder.phase == .requesting)
+                                    Menu("確認・接続") {
+                                        Button("発表の音声") { showPresentationAudio = true }
+                                        Button("画面構成を試す") { reviewAfterDetails = true; showDetails = false }
+                                        Button("音声を試す") { audioAfterDetails = true; showDetails = false }
+                                            .disabled(camera.phase == .running || camera.phase == .preparing)
+                                        if link.connectedName != nil {
+                                            Button("接続を切る", role: .destructive) { model.stop(); showDetails = false }
+                                        }
+                                    }
+                                    Text("右タップで次へ、左で戻る。ドラッグでポインター。")
+                                        .font(.caption)
+                                    Text(link.status).font(.caption)
+                                }.navigationTitle("その他")
                             }
-                            Section("カメラ") {
-                                Button("カメラの設定・結果") { showCamera = true }
-                                    .disabled(audioRecorder.phase == .recording || audioRecorder.phase == .requesting)
-                                if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)") }
-                            }
-                            Section("発表時間") {
-                                PresentationResultsButton(association: presentationResult, camera: camera)
-                                PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
-                                    connected: link.connectedName != nil, canStart: model.state.isSharing,
-                                    send: { model.timerAction($0, duration: $1) })
-                            }
-                            presentationAudioSection
-                            Section("接続") { Text(link.status); Text(model.state.message); Text(model.state.notesStatus) }
-                            if link.connectedName != nil {
-                                Button("Macとの接続を切る", role: .destructive) { model.stop(); showDetails = false }
-                            }
-                        }.navigationTitle("接続と操作")
+                        }.navigationTitle("メニュー")
                             .toolbar { Button("閉じる") { showDetails = false } }
+                            .sheet(isPresented: $showPresentationAudio) {
+                                NavigationStack {
+                                    List { presentationAudioSection }
+                                        .navigationTitle("発表の音声")
+                                        .toolbar { Button("閉じる") { showPresentationAudio = false } }
+                                }
+                            }
                             .sheet(isPresented: $showCamera) {
                                 NavigationStack {
                                     CameraPanel(controller: camera, onContinueWithoutAnalysis: { showCamera = false })
@@ -290,7 +312,7 @@ struct PhoneScreen: View {
         Section("発表の音声 · このiPhone") {
             if audioRecorder.phase == .recording {
                 Button("録音を終了") { audioRecorder.stop() }
-                Text("詳細を閉じても録音は続きます。発表終了・切断・背景移行で停止します。")
+                Text("発表終了・切断・バックグラウンド移行で停止")
             } else if audioRecorder.phase == .requesting {
                 ProgressView("マイクを準備中")
                 Button("録音開始を取り消す") { audioRecorder.stopForInterruption() }
@@ -308,7 +330,7 @@ struct PhoneScreen: View {
                         })
                     }
                 }
-                Text("任意の録音です。カメラ分析は停止します。音声の送信は終了後の明示操作のみ。")
+                Text("カメラを停止して録音。送信は確認後。")
             }
             if audioRecorder.identity.belongs(to: model.state.timer?.sessionID) {
                 if let error = audioRecorder.error { Text(error).font(.footnote) }
@@ -318,14 +340,14 @@ struct PhoneScreen: View {
                         Text("録音時間 \(report.duration, specifier: "%.1f")秒 · この発表に関連する音声結果")
                         Text("フィラー候補：\(report.fillerCandidates.map { String($0.count) } ?? "未計測")")
                     }
-                    Button("この発表の音声を分析・結果を見る") { audioAfterDetails = true; showDetails = false }
+                    Button("分析・結果") { showPresentationAudio = false; audioAfterDetails = true; showDetails = false }
                 }
             } else if audioRecorder.hasRecording {
-                Text("別の録音を保持しています。ホームの「音声を試す」で確認・破棄してから新しく録音してください。")
+                Text("別の録音があります。「音声を試す」で確認してください。")
             } else if !presentationAudioActive {
-                Text("録音は発表開始後に任意で使えます。音声OFFでも発表できます。")
+                Text("発表開始後に録音できます")
             }
-            Text("スライド時刻との同期・Macアプリへの結果同期は未接続です。")
+            Text("Macとの結果同期は未対応")
                 .font(.footnote)
         }
     }
