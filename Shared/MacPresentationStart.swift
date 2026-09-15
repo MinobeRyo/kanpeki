@@ -2,6 +2,7 @@ import Foundation
 
 /// Immutable user intent; asynchronous preparation must not apply to a changed selection/session.
 struct MacPresentationStart: Equatable {
+    enum Mode { case start, recoverSharing }
     let id = UUID()
     let windowID: UInt32
     let documentPath: String?
@@ -9,14 +10,21 @@ struct MacPresentationStart: Equatable {
     let timerRevision: UInt64
     let requiresPowerPoint: Bool
     var requiredConnectionID: UUID? = nil
+    var mode: Mode = .start
 
     func matches(windowID: UInt32?, documentPath: String?, timer: PresentationTimerSnapshot?) -> Bool {
         self.windowID == windowID && self.documentPath == documentPath &&
         timer?.sessionID == timerSessionID && timer?.revision == timerRevision &&
-        timer?.phase == .ready && timer?.durationSeconds != nil && timer?.isFinishing != true
+        acceptsPhase(timer?.phase) && timer?.durationSeconds != nil && timer?.isFinishing != true
     }
 
-    func canStart(activeIntentID: UUID?, connectionID: UUID?, windowID: UInt32?, documentPath: String?, timer: PresentationTimerSnapshot?,
+    var startsTimer: Bool { mode == .start }
+
+    private func acceptsPhase(_ phase: PresentationTimerPhase?) -> Bool {
+        mode == .start ? phase == .ready : phase == .running || phase == .paused
+    }
+
+    func canComplete(activeIntentID: UUID?, connectionID: UUID?, windowID: UInt32?, documentPath: String?, timer: PresentationTimerSnapshot?,
                   sharing: Bool, frameReady: Bool, hasImage: Bool, controlsReady: Bool) -> Bool {
         activeIntentID == id && (requiredConnectionID == nil || requiredConnectionID == connectionID) &&
         matches(windowID: windowID, documentPath: documentPath, timer: timer) &&

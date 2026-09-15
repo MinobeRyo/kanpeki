@@ -9,6 +9,7 @@ struct MacPreparationDraft: Identifiable {
 struct MacWindowSelectionFlow: View {
     let windows: [CaptureWindow]
     let currentID: UInt32?
+    var restoring = false
     let canApply: () -> Bool
     let apply: (UInt32) -> Bool
     @Environment(\.dismiss) private var dismiss
@@ -42,7 +43,7 @@ struct MacWindowSelectionFlow: View {
                 Spacer()
                 if reviewing {
                     Button("戻る") { reviewing = false; rejected = false }
-                    Button("この画面を使う") {
+                    Button(restoring ? "この画面で共有を復旧" : "この画面を使う") {
                         guard let selection, canApply(), apply(selection) else { rejected = true; return }
                         dismiss()
                     }.buttonStyle(.borderedProminent).disabled(selected == nil || !canApply())

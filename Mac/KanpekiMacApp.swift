@@ -131,7 +131,6 @@ struct MacScreen: View {
             .task { await capture.refreshWindows() }
             .onChange(of: model.deck?.url) { _, _ in Task { await capture.refreshWindows() } }
             .onChange(of: showPreparation) { _, visible in if visible { Task { await capture.refreshWindows() } } }
-            .onChange(of: model.selectedWindowID) { _, _ in model.cancelPresentationStart() }
             .onChange(of: capture.message) { _, message in
                 if capture.needsScreenPermission { model.errorMessage = message }
             }
@@ -167,9 +166,16 @@ struct MacScreen: View {
             }
             .sheet(item: $windowDraft) { draft in
                 MacWindowSelectionFlow(windows: capture.windows, currentID: model.selectedWindowID,
+                    restoring: draft.timer.phase == .running || draft.timer.phase == .paused,
                     canApply: { canPrepare(draft) }, apply: { id in
                         guard canPrepare(draft), capture.windows.contains(where: { $0.id == id }) else { return false }
                         model.selectedWindowID = id
+                        if draft.timer.phase == .running || draft.timer.phase == .paused {
+                            Task {
+                                await model.recoverSharing(macOnly: macOnly, expectedTimer: draft.timer,
+                                    expectedConnectionID: draft.connectionID)
+                            }
+                        }
                         return true
                     })
             }
@@ -250,6 +256,29 @@ struct MacScreen: View {
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    if presenting {
+                        GroupBox("共有とスライド操作") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(capture.windows.first { $0.id == model.selectedWindowID }?.label ?? "共有画面を選び直してください")
+                                if capture.needsScreenPermission {
+                                    Button("画面収録を許可して探す") { Task { await capture.refreshWindows(requestPermission: true) } }
+                                    Button("システム設定を開く") { capture.openScreenPermissionSettings() }
+                                }
+                                Button("共有・操作を確認し直す") {
+                                    Task {
+                                        await capture.refreshWindows()
+                                        windowDraft = preparationDraft()
+                                    }
+                                }.disabled(model.presentationStarting || model.timerFinishing || capture.needsScreenPermission ||
+                                    (link.connectedName == nil && !macOnly))
+                                Text("画面を選んで確認後、共有とPowerPoint操作を復旧します。発表タイマーはそのままです。").font(.caption)
+                                if link.connectedName == nil {
+                                    Text(macOnly ? "Macだけで使用中" : "復旧にはiPhoneの再接続か、Macだけで使う選択が必要です。").font(.caption)
+                                    Button("接続方法を選ぶ") { connectionDraft = preparationDraft() }.disabled(model.presentationStarting)
+                                }
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                     Button { showCamera = true } label: { Label("カメラの設定・結果", systemImage: "video") }
                     PresentationResultsButton(association: presentationResult, camera: camera)
                     if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)").font(.caption) }
@@ -267,7 +296,7 @@ struct MacScreen: View {
                 } else { Button("案内を表示") { showGuide = true }.font(.caption) }
                 if model.presentationStarting {
                     HStack { ProgressView(); Text("共有とスライドを確認中") }
-                    Button("開始をキャンセル") { model.cancelPresentationStart() }
+                    Button(presenting ? "復旧をキャンセル" : "開始をキャンセル") { model.cancelPresentationStart() }
                 } else if presenting {
                     Button("発表を終了") { endingSession = model.state.timer?.sessionID }
                         .buttonStyle(BrandPrimaryButtonStyle()).disabled(model.timerFinishing)
@@ -304,7 +333,8 @@ struct MacScreen: View {
     }
 
     private func canPrepare(_ draft: MacPreparationDraft) -> Bool {
-        !model.presentationStarting && !model.timerFinishing && model.state.timer?.phase == .ready &&
+        !model.presentationStarting && !model.timerFinishing &&
+        model.state.timer?.phase == draft.timer.phase && draft.timer.phase != .ended &&
         model.state.timer?.sessionID == draft.timer.sessionID && model.state.timer?.revision == draft.timer.revision &&
         model.preparationConnectionID == draft.connectionID
     }

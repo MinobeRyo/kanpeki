@@ -12,7 +12,7 @@ import Foundation
         var activeID: UUID? = intent.id
         func permits(window: UInt32? = 7, path: String? = "/slides.pptx", sharing: Bool = true,
                      frame: Bool = true, image: Bool = true, control: Bool = true) -> Bool {
-            intent.canStart(activeIntentID: activeID, connectionID: connectionID, windowID: window, documentPath: path, timer: timer,
+            intent.canComplete(activeIntentID: activeID, connectionID: connectionID, windowID: window, documentPath: path, timer: timer,
                 sharing: sharing, frameReady: frame, hasImage: image, controlsReady: control)
         }
         precondition(permits())
@@ -34,8 +34,23 @@ import Foundation
         timer.sessionID = UUID(); precondition(!permits())
         let displayOnly = MacPresentationStart(windowID: 7, documentPath: nil,
             timerSessionID: timer.sessionID, timerRevision: timer.revision, requiresPowerPoint: false)
-        precondition(displayOnly.canStart(activeIntentID: displayOnly.id, connectionID: nil, windowID: 7, documentPath: nil, timer: timer,
+        precondition(displayOnly.canComplete(activeIntentID: displayOnly.id, connectionID: nil, windowID: 7, documentPath: nil, timer: timer,
             sharing: true, frameReady: true, hasImage: true, controlsReady: false))
+        timer.phase = .running
+        let restore = MacPresentationStart(windowID: 7, documentPath: nil,
+            timerSessionID: timer.sessionID, timerRevision: timer.revision, requiresPowerPoint: true,
+            requiredConnectionID: connected, mode: .recoverSharing)
+        func recovered(activeID: UUID? = restore.id, connection: UUID? = connected, controls: Bool = true) -> Bool {
+            restore.canComplete(activeIntentID: activeID, connectionID: connection, windowID: 7,
+                documentPath: nil, timer: timer, sharing: true, frameReady: true, hasImage: true, controlsReady: controls)
+        }
+        precondition(!restore.startsTimer && intent.startsTimer && recovered())
+        precondition(!recovered(activeID: nil) && !recovered(connection: nil) && !recovered(controls: false))
+        timer.phase = .paused; precondition(recovered())
+        timer.phase = .ended; precondition(!recovered())
+        timer.phase = .ready; precondition(!recovered())
+        timer.phase = .running; timer.revision += 1; precondition(!recovered())
+        timer.revision -= 1; timer.sessionID = UUID(); precondition(!recovered())
         func keys(editing: Bool = false, sheet: Bool = false, modifier: Bool = false,
                   keyWindow: Bool = true, repeated: Bool = false) -> Bool {
             MacPresentationKeyboard.canNavigate(isKeyWindow: keyWindow, editingText: editing,

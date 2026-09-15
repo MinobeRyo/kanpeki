@@ -5,7 +5,9 @@ import UniformTypeIdentifiers
 @MainActor final class MacModel: ObservableObject {
     let capture = WindowCapture()
     let link = PeerLink(isHost: true)
-    @Published var selectedWindowID: UInt32? = nil
+    @Published var selectedWindowID: UInt32? = nil {
+        didSet { if oldValue != selectedWindowID { cancelPresentationStart() } }
+    }
     @Published var state = PresentationState()
     @Published var deck: ImportedDeck?
     @Published var importing = false
@@ -50,7 +52,7 @@ import UniformTypeIdentifiers
             guard let self else { return }
             self.preparationConnectionID = UUID()
             if self.presentationStarting, self.presentationStartIntent?.requiredConnectionID != nil {
-                self.errorMessage = "接続が変わったため開始を取り消しました。接続を確認するか、Macだけで始めるを選んでください。"
+                self.errorMessage = "接続が変わったため共有準備を取り消しました。接続を確認するか、Macだけで始めるを選んでください。"
                 self.cancelPresentationStart()
             }
             self.requests = RequestDeduplicator()
@@ -126,14 +128,37 @@ import UniformTypeIdentifiers
 
     /// Called only by the explicit primary action. Capture permission is never requested on launch.
     func beginPresentation(macOnly: Bool = false) async {
-        guard presentationStartReason == nil,
+        await preparePresentation(macOnly: macOnly, mode: .start)
+    }
+
+    /// Restore only sharing and PowerPoint observation; never start/reset the existing clock.
+    func recoverSharing(macOnly: Bool, expectedTimer: PresentationTimerSnapshot, expectedConnectionID: UUID) async {
+        await preparePresentation(macOnly: macOnly, mode: .recoverSharing,
+            expectedTimer: expectedTimer, expectedConnectionID: expectedConnectionID)
+    }
+
+    private func preparePresentation(macOnly: Bool, mode: MacPresentationStart.Mode,
+        expectedTimer: PresentationTimerSnapshot? = nil, expectedConnectionID: UUID? = nil) async {
+        if let expectedTimer {
+            guard state.timer?.sessionID == expectedTimer.sessionID,
+                  state.timer?.revision == expectedTimer.revision,
+                  state.timer?.phase == expectedTimer.phase,
+                  preparationConnectionID == expectedConnectionID else {
+                errorMessage = "準備状態が変わりました。共有画面をもう一度確認してください。"
+                return
+            }
+        }
+        let allowed = mode == .start ? presentationStartReason == nil :
+            (!presentationStarting && !importing && !timerFinishing &&
+                (state.timer?.phase == .running || state.timer?.phase == .paused))
+        guard allowed,
               macOnly || link.connectedName != nil,
               let window = capture.windows.first(where: { $0.id == selectedWindowID }),
               let snapshot = state.timer else { return }
         let intent = MacPresentationStart(windowID: window.id, documentPath: deck?.url.path,
             timerSessionID: snapshot.sessionID, timerRevision: snapshot.revision,
             requiresPowerPoint: window.isPowerPoint,
-            requiredConnectionID: macOnly ? nil : preparationConnectionID)
+            requiredConnectionID: macOnly ? nil : preparationConnectionID, mode: mode)
         presentationStartIntent = intent
         presentationStarting = true
         errorMessage = nil
@@ -153,17 +178,22 @@ import UniformTypeIdentifiers
         }
         guard startIsCurrent(intent),
               lastSnapshotAt.map({ TimerClock.now - $0 < 3 }) == true,
-              intent.canStart(activeIntentID: presentationStartIntent?.id,
+              intent.canComplete(activeIntentID: presentationStartIntent?.id,
                 connectionID: link.connectedName == nil ? nil : preparationConnectionID,
                 windowID: selectedWindowID, documentPath: deck?.url.path, timer: state.timer,
                 sharing: capture.sharing, frameReady: state.frameReady == true, hasImage: capture.image != nil,
                 controlsReady: monitoring && state.canControl) else {
-            if presentationStartIntent != nil { errorMessage = "開始できませんでした。共有画面・資料と画像更新を確認してください。タイマーは開始していません。" }
+            if presentationStartIntent != nil {
+                errorMessage = intent.startsTimer ? "開始できませんでした。共有画面・資料と画像更新を確認してください。タイマーは開始していません。" :
+                    "共有を復旧できませんでした。共有画面と資料を確認してください。発表タイマーは変更していません。"
+            }
             await stopSharing(); return
         }
-        let current = presentationTimer.snapshot(at: TimerClock.now)
-        applyTimer(PresentationTimerCommand(sessionID: current.sessionID, revision: current.revision,
-            sequence: current.sequence, action: .start), fromPreparation: true)
+        if intent.startsTimer {
+            let current = presentationTimer.snapshot(at: TimerClock.now)
+            applyTimer(PresentationTimerCommand(sessionID: current.sessionID, revision: current.revision,
+                sequence: current.sequence, action: .start), fromPreparation: true)
+        }
     }
 
     private func startIsCurrent(_ intent: MacPresentationStart) -> Bool {
@@ -353,7 +383,7 @@ import UniformTypeIdentifiers
                     invalidateFrames()
                     if presentationStarting {
                         presentationStartIntent = nil
-                        errorMessage = "共有画像の確認に失敗したため、発表開始を取り消しました。"
+                        errorMessage = "共有画像の確認に失敗したため、共有準備を取り消しました。"
                     }
                     publishState()
                     return
@@ -382,7 +412,7 @@ import UniformTypeIdentifiers
                 state.message = "画像更新を待っています。共有状態を確認してください"
                 if presentationStarting {
                     presentationStartIntent = nil
-                    errorMessage = "共有画像を確認できないため、発表開始を取り消しました。"
+                    errorMessage = "共有画像を確認できないため、共有準備を取り消しました。"
                 }
                 publishState()
             }
