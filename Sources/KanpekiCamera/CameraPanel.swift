@@ -15,6 +15,8 @@ public struct CameraPanel: View {
     @State private var front = false
     @State private var showResult = false
     @State private var confirmEnd = false
+    @State private var confirmDelete = false
+    @State private var deletingID: UUID?
     @State private var details = false
     private let onContinueWithoutAnalysis: (() -> Void)?
 
@@ -47,6 +49,13 @@ public struct CameraPanel: View {
         .confirmationDialog("カメラ分析を終了しますか？", isPresented: $confirmEnd, titleVisibility: .visible) {
             Button("終了して結果を見る") { camera.stop(); showResult = true }
             Button("続ける", role: .cancel) {}
+        }
+        .confirmationDialog("このカメラ結果を削除しますか？ 元に戻せません。", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("結果を削除", role: .destructive) {
+                if let id = deletingID { camera.deleteResult(id: id) }
+                showResult = false
+            }
+            Button("残す", role: .cancel) {}
         }
         .onChange(of: scenePhase) { _, phase in
             #if os(iOS)
@@ -81,8 +90,8 @@ public struct CameraPanel: View {
             case .preparing: ProgressView("カメラを準備中")
             default: EmptyView()
             }
-            if camera.summary.sampledSeconds > 0 && camera.phase != .preparing {
-                Button("停止までの結果を見る") { showResult = true }
+            if camera.phase != .preparing {
+                Button(camera.result.id == nil ? "計測状態を確認" : "結果・計測状態を見る") { showResult = true }
             }
             if camera.phase == .preparing {
                 Button("キャンセル") { camera.stop() }
@@ -131,25 +140,38 @@ public struct CameraPanel: View {
     }
 
     private var result: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("\(camera.subject.title)の観察候補").font(.title2)
-            if camera.summary.observableSeconds == 0 {
-                Text("解析できた区間がありません。撮影範囲や明るさを確認してください。")
+        let snapshot = camera.result
+        let summary = snapshot.summary
+        return VStack(alignment: .leading, spacing: 16) {
+            Text("おつかれさまでした").font(.title2)
+            Text(snapshot.status.message)
+            if snapshot.status == .finalizing { ProgressView("カメラ結果を確定中") }
+            Text(snapshot.id == nil ? "カメラ" : "カメラ · \(snapshot.subject.title)").font(.headline)
+            if summary.observableSeconds == 0 {
+                Text("判別できた区間はありません。未計測を0点として評価しません。")
             } else {
-                Text("顔の向きを取得できた時間：約\(camera.summary.observableSeconds)秒")
-                if camera.subject == .audience {
-                    Text("うなずき候補のあった時間：\(camera.summary.nodCandidateSeconds)秒")
+                Text("顔の向きを取得できた時間：約\(summary.observableSeconds)秒")
+                if snapshot.subject == .audience {
+                    Text("うなずき候補のあった時間：\(summary.nodCandidateSeconds)秒")
                         .font(.title3.bold())
                     Text("1秒ごとに候補の有無を集計しています。動作の回数や人数ではありません。")
                         .font(.footnote)
                 }
             }
-            if camera.summary.missingSeconds > 0 {
-                Label("未計測・判別できない区間：約\(camera.summary.missingSeconds)秒", systemImage: "exclamationmark.circle")
+            if summary.missingSeconds > 0 {
+                Label("未計測・判別できない区間：約\(summary.missingSeconds)秒", systemImage: "exclamationmark.circle")
             }
+            DisclosureGroup("話し方") {
+                Text("音声分析は未接続です。フィラー・間・改善候補はまだ表示できません。")
+            }
+            Text("これはカメラ計測の結果です。発表全体の経過時間や評価ではありません。")
+                .font(.footnote)
             Text("結果は端末内で一時的に保持します。新しい分析を開始するか、アプリを終了すると破棄されます。")
                 .font(.footnote)
             Button("準備に戻る") { showResult = false }.buttonStyle(.borderedProminent)
+            if let id = snapshot.id, snapshot.status != .finalizing {
+                Button("結果を削除", role: .destructive) { deletingID = id; confirmDelete = true }
+            }
         }
         .padding(20)
         .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16))
