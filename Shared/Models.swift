@@ -70,6 +70,7 @@ struct ImportedSlide: Codable, Equatable {
     let id: Int
     let index: Int
     let notes: String
+    var body: String = ""
 }
 struct ImportedDeck {
     let url: URL

@@ -158,6 +158,14 @@ struct MacScreen: View {
                         connected: true, canStart: capture.sharing,
                         send: { model.timerAction($0, duration: $1) })
                 }
+                GroupBox("ChatGPTで相談") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(model.mcpStatus).font(.caption)
+                        Button("資料と発表状況の共有を開始") { model.startMCP() }
+                        Button("ChatGPTとの共有を停止") { model.stopMCP() }
+                        Link("ChatGPTを開く", destination: URL(string: "https://chatgpt.com/")!)
+                    }
+                }
                 Button { showCamera = true } label: { Label("カメラの設定・結果", systemImage: "video") }
                 PresentationResultsButton(association: presentationResult, camera: camera)
                 if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)").font(.caption) }

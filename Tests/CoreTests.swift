@@ -12,6 +12,7 @@ import Foundation
         let folder = URL(fileURLWithPath: CommandLine.arguments[1])
         let deck = try PPTXImporter.load(folder.appendingPathComponent("reordered.pptx"))
         expect(deck.slides.map(\.id) == [400, 256, 900], "presentation.xml defines order; filenames do not")
+        expect(deck.slides.map(\.body) == ["Body 9 & value", "Body 1 & value", "Body 2 & value"], "body text follows presentation relationships and decodes entities")
         expect(deck.slides.map(\.index) == [1, 2, 3], "display indexes are 1 based")
         expect(deck.slides[0].notes == "最初の原稿\n二行目 & 続き", "Japanese notes preserve paragraphs and entities")
         expect(deck.slides[1].notes.isEmpty, "missing notes remain empty")

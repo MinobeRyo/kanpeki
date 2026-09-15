@@ -53,3 +53,7 @@ MacとiPhoneはどちらもネイティブアプリとして提供し、チー�
 進捗は `scripts/team.py report --state doing|review|blocked|done --body-file FILE` を使う（状態は一つを選択）。done報告はIssueを閉じる前に行う。作業を分ける時はdocs/WORKTREES.mdに従い、Issueとworktreeを1対1に保つ。Slackへ流れる冒頭3行は要点だけ、詳細と検証根拠はIssue／PRへ記録する。
 共有の要求が失敗したら「共有済み」と扱わず、部分成功を読み直し、復旧時に重複なく追記する。未共有の開始状態のまま競合し得る編集は進めないが、独立した読み取り・調査・下書きは続けられる。
 このルールはAIの実行中と次回の開始・再開時に適用する。AGENTS.md自体は、終了したAIを自動起動したりSlackを常時監視したりする仕組みではない。
+
+## このブランチの統合作業
+
+ユーザー指定の `add.minobe` で既存の `apps/SlidePacer` を引き継ぎ、ローカルLLMを使用する統合からChatGPTのMCP接続へ変更する。資料取り込み・原文ID照合・決定的な時間配分・結果表示を再利用する。追加課金が必要なモデルAPIへは切り替えない。Issue #33に記録する。
