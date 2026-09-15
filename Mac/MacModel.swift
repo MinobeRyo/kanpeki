@@ -14,6 +14,12 @@ import UniformTypeIdentifiers
     @Published var events: [SlideObservation] = []
     @Published private(set) var timerReceivedAt: TimeInterval?
     @Published private(set) var timerFinishing = false
+    @Published var mcpStatus = "ChatGPT連携は停止中"
+    private var mcpFolder: URL?
+    private var mcpScoped = false
+    private var mcpDeckVersion = UUID()
+    private var mcpDeckMatchesObservation = false
+    private var mcpWrittenDeckVersion: UUID?
     private var presentationTimer = PresentationTimerAuthority()
     private let bridge: PresentationControlling = PowerPointBridge()
     private var timer: Timer?
@@ -132,6 +138,7 @@ import UniformTypeIdentifiers
     }
 
     func disableControl() {
+        mcpDeckMatchesObservation = false
         resetPointer()
         timer?.invalidate()
         timer = nil
@@ -156,10 +163,12 @@ import UniformTypeIdentifiers
             state.canControl = true
             state.message = "PowerPointの実際の表示ページを同期中"
             state.notes = ""
+            mcpDeckMatchesObservation = false
             if let deck {
                 let samePath = URL(fileURLWithPath: position.path).standardizedFileURL.resolvingSymlinksInPath() == deck.url.standardizedFileURL.resolvingSymlinksInPath()
                 if samePath && deck.slides.count == position.count,
                    let slide = deck.slides.first(where: { $0.id == position.id && $0.index == position.index }) {
+                    mcpDeckMatchesObservation = true
                     state.notes = slide.notes
                     state.notesStatus = slide.notes.isEmpty ? "このスライドの発表者ノートは空です" : "保存済みpptxから取得した原稿（編集後は再取込）"
                 } else { state.notesStatus = "表示中の資料とpptxが一致しません。保存後に同じファイルを再取込してください" }
@@ -170,6 +179,7 @@ import UniformTypeIdentifiers
             }
             if lastObservedID != position.id || lastObservedPath != position.path {
                 events.append(SlideObservation(sessionID: sessionID, observedAt: Date(), elapsedMs: Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1000), presentation: position.title, slideID: position.id, slideIndex: position.index, timingSource: "PowerPoint polling 800ms; observed time, not exact transition time"))
+                if events.count > 4096 { events.removeFirst(events.count - 4096) }
                 lastObservedID = position.id
                 lastObservedPath = position.path
             }
@@ -220,6 +230,9 @@ import UniformTypeIdentifiers
             do {
                 let imported = try await Task.detached(priority: .userInitiated) { try PPTXImporter.load(url) }.value
                 deck = imported
+                mcpDeckMatchesObservation = false
+                mcpDeckVersion = UUID()
+                publishState()
                 if monitoring { pollPosition() }
             } catch { errorMessage = error.localizedDescription }
             importing = false
@@ -337,5 +350,67 @@ import UniformTypeIdentifiers
         state.timer?.isFinishing = timerFinishing
         timerReceivedAt = now
         link.send(WireMessage(kind: "state", state: state))
+        publishMCP()
     }
+    func startMCP() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.canCreateDirectories = true
+        panel.prompt = "このフォルダーで連携"
+        panel.message = "MCPに指定した共有フォルダーを選びます。読み込んだ資料・ノート・発表状況をChatGPTから取得できます。"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        stopMCP()
+        mcpFolder = url; mcpScoped = url.startAccessingSecurityScopedResource()
+        mcpWrittenDeckVersion = nil
+        publishMCP()
+    }
+
+    func stopMCP() {
+        if let folder = mcpFolder {
+            // Invalidate the lease immediately. Never claim stale live state is current.
+            try? Data("{\"schemaVersion\":1,\"updatedAt\":0}".utf8).write(to: folder.appendingPathComponent("live-snapshot.json"), options: .atomic)
+            if mcpScoped { folder.stopAccessingSecurityScopedResource() }
+        }
+        mcpFolder = nil; mcpScoped = false; mcpStatus = "ChatGPT連携は停止中"
+    }
+
+    private func publishMCP() {
+        guard let folder = mcpFolder else { return }
+        do {
+            if mcpWrittenDeckVersion != mcpDeckVersion {
+                let value: [String: Any] = ["schemaVersion":1, "deckVersion":mcpDeckVersion.uuidString,
+                    "title":deck?.title ?? "資料未読込", "available":deck != nil,
+                    "slides":deck?.slides.map { ["slideIndex":$0.index,"slideID":$0.id,"body":$0.body,"notes":$0.notes] as [String:Any] } ?? []]
+                try writeMCP(value, name: "live-deck.json", folder: folder)
+                mcpWrittenDeckVersion = mcpDeckVersion
+            }
+            let timer = state.timer
+            let elapsed = timer?.elapsedSeconds
+            let remaining = timer?.durationSeconds.map { max(0, $0 - (elapsed ?? 0)) }
+            let live: [String:Any] = ["currentSlide":state.slideIndex as Any? ?? NSNull(),
+                "slideID":state.slideID as Any? ?? NSNull(), "observedPresentation":state.title,
+                "matchesObservedPresentation":mcpDeckMatchesObservation,
+                "canControl":state.canControl, "isSharing":state.isSharing,
+                "phoneConnected":link.connectedName != nil,
+                "elapsedSeconds":elapsed as Any? ?? NSNull(), "remainingSeconds":remaining as Any? ?? NSNull(),
+                "timerSessionID":timer?.sessionID.uuidString as Any? ?? NSNull(),
+                "timerPhase":timer?.phase.rawValue as Any? ?? NSNull(), "notesStatus":state.notesStatus,
+                "speechMetricsAvailable":false, "cameraMetricsAvailable":false]
+            let observations = events.suffix(256).map { ["presentation":$0.presentation,"slideIndex":$0.slideIndex,"slideID":$0.slideID,"elapsedMs":$0.elapsedMs,"timingSource":$0.timingSource] as [String:Any] }
+            let practice: [String:Any] = ["observations":observations,"retainedObservationCount":events.count,
+                "returnedObservationLimit":256, "isComplete":events.count<=256,
+                "timingSource":"PowerPoint polling observations; not exact slide dwell times or speech duration",
+                "timerElapsedSeconds":elapsed as Any? ?? NSNull(), "timerSessionID":timer?.sessionID.uuidString as Any? ?? NSNull(), "perSlideSeconds":NSNull(),"fillerCount":NSNull()]
+            try writeMCP(["schemaVersion":1,"sessionID":sessionID.uuidString,"deckVersion":mcpDeckVersion.uuidString,
+                "updatedAt":Date().timeIntervalSince1970,"live":live,"practice":practice], name:"live-snapshot.json", folder:folder)
+            mcpStatus = "ChatGPTに資料と発表状況を共有中"
+        } catch { mcpStatus = "ChatGPT共有の保存に失敗：\(error.localizedDescription)" }
+    }
+    private func writeMCP(_ object: [String:Any], name: String, folder: URL) throws {
+        let data = try JSONSerialization.data(withJSONObject:object, options:[.sortedKeys])
+        guard data.count <= 8 * 1024 * 1024 else { throw DeckImportError.invalid("共有データは8MB以内にしてください") }
+        let url = folder.appendingPathComponent(name)
+        try data.write(to:url, options:.atomic)
+        try FileManager.default.setAttributes([.posixPermissions:0o600], ofItemAtPath:url.path)
+    }
+
 }
