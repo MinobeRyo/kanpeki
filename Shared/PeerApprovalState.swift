@@ -1,5 +1,34 @@
 import Foundation
 
+/// Invalidates already queued traffic at the instant a matching session disconnects.
+/// Retired sessions and foreign peers cannot change the current callback epoch.
+final class PeerCallbackGate<Peer: Equatable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var source: ObjectIdentifier?
+    private var peer: Peer?
+    private var epoch = UUID()
+    private var ended = false
+
+    func begin(source: AnyObject, peer: Peer?) {
+        lock.lock(); defer { lock.unlock() }
+        self.source = ObjectIdentifier(source)
+        self.peer = peer
+        epoch = UUID(); ended = false
+    }
+
+    func ticket(source: AnyObject, peer: Peer, ending: Bool = false) -> UUID? {
+        lock.lock(); defer { lock.unlock() }
+        guard self.source == ObjectIdentifier(source), self.peer == peer, !ended else { return nil }
+        if ending { ended = true; epoch = UUID() }
+        return epoch
+    }
+
+    func accepts(_ ticket: UUID, source: AnyObject, ended: Bool = false) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return self.source == ObjectIdentifier(source) && epoch == ticket && self.ended == ended
+    }
+}
+
 /// Single-peer admission, independent of MultipeerConnectivity and UI callbacks.
 /// The transport must also reject callbacks from retired MCSession instances.
 struct PeerApprovalState<Peer: Equatable> {
@@ -49,4 +78,9 @@ struct PeerApprovalState<Peer: Equatable> {
     }
 
     func allowsTraffic(from peer: Peer) -> Bool { phase == .connected && self.peer == peer }
+    // An approved peer may deliver a frame before its connected callback reaches main.
+    // ACK only; never release private state or display that frame before connected.
+    func allowsFrameAcknowledgement(from peer: Peer) -> Bool {
+        (phase == .connecting || phase == .connected) && self.peer == peer
+    }
 }
