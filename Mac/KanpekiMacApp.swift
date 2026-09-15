@@ -55,6 +55,7 @@ struct MacScreen: View {
     @AppStorage("macNotesSize") private var notesSize = 0
     @State private var showDetails = false
     @State private var showPractice = false
+    @State private var showRecordedResults = false
     @State private var showPreparationAI = false
     @State private var notesAfterPreparation = false
     @State private var showPreparationNotes = false
@@ -200,6 +201,13 @@ struct MacScreen: View {
                 }.padding(20).frame(width: 800, height: 580)
             }
             .sheet(isPresented: $showPractice) { practiceSheet }
+            .sheet(isPresented: $showRecordedResults) {
+                VStack(alignment: .leading, spacing: 20) {
+                    Button("戻る") { showRecordedResults = false }
+                    PresentationResultsButton(association: presentationResult, camera: camera)
+                    if presentationResult.elapsedSeconds == nil { Text("練習・発表の終了後に表示します") }
+                }.padding(24).frame(minWidth: 480, minHeight: 180)
+            }
             .sheet(isPresented: $showPreparationNotes) {
                 VStack(alignment: .leading, spacing: 20) {
                     Button("戻る") { showPreparationNotes = false }
@@ -361,6 +369,7 @@ struct MacScreen: View {
             Button("音声分析を開く") { navigation.open(.audio) }.buttonStyle(BrandPrimaryButtonStyle())
             Menu("カメラ・AI振り返り・その他") {
                 Button("カメラの設定・結果") { showCamera = true }
+                Button("時間・カメラの結果") { showRecordedResults = true }
                 Button("ChatGPTで発表を振り返る") { showPractice = true }
                 Button("資料をAIで整理する") { if model.preparationFolder == nil { model.startMCP() }; showPreparationAI = true }
                 Button("練習する") { navigation.open(.practice) }
