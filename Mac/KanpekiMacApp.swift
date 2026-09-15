@@ -183,6 +183,7 @@ struct MacScreen: View {
                 GroupBox("ChatGPTで相談") {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(model.mcpStatus).font(.caption)
+                        PreparationNotesView(model: model)
                         Button("分析データの共有を開始") { model.startMCP() }
                         Button("ChatGPTとの共有を停止") { model.stopMCP() }
                         Text("音声認識結果・カメラの集計値も共有します。").font(.caption)
