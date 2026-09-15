@@ -113,6 +113,7 @@ struct PhoneScreen: View {
     @StateObject private var audioRecorder = RecorderModel()
     @State private var showScreenReview = false
     @State private var reviewAfterDetails = false
+    @State private var audioAfterDetails = false
     @StateObject private var camera = CameraController()
     @State private var presentationResult = PresentationResultAssociation()
     @State private var showCamera = false
@@ -143,30 +144,39 @@ struct PhoneScreen: View {
                             isPresenting: timer?.phase == .running || timer?.phase == .paused,
                             isForeground: cameraScenePhase == .active, isConnected: fresh))
                 }
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if link.connectedName == nil {
-                            Text("Macにつなぐ").font(.title.bold())
-                            Text("Macで接続待機を開始してください。")
-                            Button(link.running ? "もう一度探す" : "近くのMacを探す") {
-                                model.stop(); link.start()
-                            }.buttonStyle(BrandPrimaryButtonStyle()).controlSize(.large)
-                            ForEach(link.availablePeers, id: \.self) { peer in
-                                Button { link.invite(peer) } label: {
-                                    Label(peer.displayName, systemImage: "desktopcomputer")
-                                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                }.buttonStyle(.bordered)
-                            }
-                            Button("画面構成を試す") { showScreenReview = true }.buttonStyle(.bordered)
-                            Button("音声を試す") { showAudioTrial = true }
-                                .buttonStyle(.bordered)
-                                .disabled(camera.phase == .running || camera.phase == .preparing)
-                            Text(link.status).font(.caption)
-                            HStack {
-                                Image("BrandMascot").resizable().scaledToFit().frame(width: 72, height: 72)
-                                Text("見つかったMacを選んでね").font(.callout)
-                            }.padding(.top)
-                        } else {
+                if link.connectedName == nil {
+                    GeometryReader { geometry in
+                        ScrollView {
+                            VStack(spacing: 24) {
+                                Spacer(minLength: 24)
+                                Image("BrandMascot").resizable().scaledToFit().frame(width: 100, height: 100)
+                                Text("Macにつなぐ").font(.largeTitle.bold())
+                                if !link.availablePeers.isEmpty {
+                                    Menu {
+                                        ForEach(link.availablePeers, id: \.self) { peer in
+                                            Button(peer.displayName) { link.invite(peer) }
+                                        }
+                                        Divider()
+                                        Button("探し直す") { model.stop(); link.start() }
+                                    } label: {
+                                        Label("Macを選ぶ", systemImage: "desktopcomputer")
+                                            .frame(maxWidth: .infinity, minHeight: 44)
+                                    }.buttonStyle(BrandPrimaryButtonStyle())
+                                }
+                                if link.availablePeers.isEmpty {
+                                    Button(link.running ? "探し直す" : "Macを探す") {
+                                        model.stop(); link.start()
+                                    }.buttonStyle(.bordered).controlSize(.large)
+                                }
+                                Text(link.availablePeers.isEmpty ? "Macで接続待機を開始" : "接続するMacを選択")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Spacer(minLength: 24)
+                            }.frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                        }
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
                             Label("Macと接続中", systemImage: "link").font(.caption)
                             Text(model.state.title).font(.headline).lineLimit(2)
                             VStack(alignment: .leading, spacing: 12) {
@@ -176,8 +186,8 @@ struct PhoneScreen: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .textSelection(.enabled)
                             }.padding(20).background(paper, in: RoundedRectangle(cornerRadius: 20))
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 if camera.phase == .running {
                     Label("カメラ：\(camera.subject.title) · \(camera.summary.currentQuality)", systemImage: "video")
@@ -201,6 +211,7 @@ struct PhoneScreen: View {
                 .foregroundStyle(ink)
                 .toolbar(.hidden, for: .navigationBar)
                 .sheet(isPresented: $showDetails, onDismiss: {
+                    if audioAfterDetails { audioAfterDetails = false; showAudioTrial = true }
                     if reviewAfterDetails {
                         reviewAfterDetails = false
                         showScreenReview = true
@@ -208,28 +219,31 @@ struct PhoneScreen: View {
                 }) {
                     NavigationStack {
                         List {
-                            Section("画面確認") {
-                                Button("画面構成を試す") { reviewAfterDetails = true; showDetails = false }
+                            NavigationLink("発表") {
+                                List {
+                                    PresentationResultsButton(association: presentationResult, camera: camera)
+                                    PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
+                                        connected: link.connectedName != nil, canStart: model.state.isSharing,
+                                        send: { model.timerAction($0, duration: $1) })
+                                }.navigationTitle("発表")
                             }
-                            Section("操作") {
-                                Text("スライドの右側をタップすると進み、左側で戻ります。")
-                                Text("スライド上で指を動かすとMacにポインターを表示します。指を離してもページは変わりません。")
+                            NavigationLink("その他") {
+                                List {
+                                    Button("カメラ") { showCamera = true }
+                                    Menu("確認・接続") {
+                                        Button("画面構成を試す") { reviewAfterDetails = true; showDetails = false }
+                                        Button("音声を試す") { audioAfterDetails = true; showDetails = false }
+                                            .disabled(camera.phase == .running || camera.phase == .preparing)
+                                        if link.connectedName != nil {
+                                            Button("接続を切る", role: .destructive) { model.stop(); showDetails = false }
+                                        }
+                                    }
+                                    Text("右タップで次へ、左で戻る。ドラッグでポインター。")
+                                        .font(.caption)
+                                    Text(link.status).font(.caption)
+                                }.navigationTitle("その他")
                             }
-                            Section("カメラ") {
-                                Button("カメラの設定・結果") { showCamera = true }
-                                if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)") }
-                            }
-                            Section("発表時間") {
-                                PresentationResultsButton(association: presentationResult, camera: camera)
-                                PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
-                                    connected: link.connectedName != nil, canStart: model.state.isSharing,
-                                    send: { model.timerAction($0, duration: $1) })
-                            }
-                            Section("接続") { Text(link.status); Text(model.state.message); Text(model.state.notesStatus) }
-                            if link.connectedName != nil {
-                                Button("Macとの接続を切る", role: .destructive) { model.stop(); showDetails = false }
-                            }
-                        }.navigationTitle("接続と操作")
+                        }.navigationTitle("メニュー")
                             .toolbar { Button("閉じる") { showDetails = false } }
                             .sheet(isPresented: $showCamera) {
                                 NavigationStack {
