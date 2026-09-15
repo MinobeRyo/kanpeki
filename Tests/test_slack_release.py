@@ -45,4 +45,14 @@ class SlackTests(unittest.TestCase):
     def test_draft_mac_is_not_advertised(self,_):
         m.discover_mac_download()
         self.assertEqual(m.os.environ['MAC_TESTER_URL'],'')
+    @patch.dict('os.environ',{'TESTFLIGHT_TESTER_URL':'','MAC_TESTER_URL':'https://testflight.apple.com/join/example'})
+    def test_mac_testflight_link(self):
+        self.assertEqual(m.app_actions()[0]['text']['text'],'Macで試す')
+    @patch.dict('os.environ',{'MAC_TESTER_URL':'https://testflight.apple.com/join/example'})
+    @patch.object(m,'gh')
+    def test_configured_mac_link_is_not_overwritten(self,gh):
+        m.discover_mac_download();gh.assert_not_called()
+    @patch.dict('os.environ',{'MAC_TESTER_URL':'https://testflight.apple.com.evil.example/join/x'})
+    def test_spoofed_mac_testflight_rejected(self):
+        with self.assertRaises(ValueError):m.app_actions()
 if __name__=='__main__':unittest.main()
