@@ -15,6 +15,7 @@ struct AudioCaptureView: View {
     @AppStorage("macAddress") private var address = "http://Mac名.local:8765"
     @State private var token = ""
     @State private var confirmDiscard = false
+    @State private var selectedFiller = 0
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -25,7 +26,7 @@ struct AudioCaptureView: View {
                         Image(logoName).resizable().scaledToFit().frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 18))
                         VStack(alignment: .leading, spacing: 4) {
                             Text("声から、次の一歩。").font(.title2.bold())
-                            Text(onClose == nil ? "発表の話し方を振り返ろう" : "音声の試験機能・スライド同期は未対応").font(.subheadline)
+                            Text(model.identity.presentationID != nil ? "発表に関連する録音・スライド時刻は未同期" : onClose == nil ? "発表の話し方を振り返ろう" : "音声の試験機能・スライド同期は未対応").font(.subheadline)
                         }
                     }
                     if model.phase == .ready || model.phase == .recorded {
@@ -146,15 +147,7 @@ struct AudioCaptureView: View {
                 Text("小さい声や意図的な間も含まれます。失敗を示すものではありません。").font(.caption)
             }.card()
             if let fillers = report.fillerCandidates, !fillers.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("フィラー候補の場所").font(.headline)
-                    ForEach(Array(fillers.enumerated()), id: \.offset) { _, filler in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(clock(filler.start))–\(clock(filler.end))　「\(filler.text)」").bold()
-                            Text(filler.context).font(.subheadline)
-                        }
-                    }
-                }.card()
+                fillerChapters(fillers.sorted { $0.start < $1.start })
             }
             if !report.slides.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
@@ -182,6 +175,57 @@ struct AudioCaptureView: View {
         }
     }
 
+    private func fillerChapters(_ fillers: [FillerCandidate]) -> some View {
+        let index = min(selectedFiller, fillers.count - 1)
+        let filler = fillers[index]
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("気になる箇所を聞き直す").font(.headline)
+                Spacer()
+                Text("\(index + 1) / \(fillers.count)").font(.caption.monospacedDigit())
+            }
+            if fillers.count > 1 {
+                Slider(value: Binding(get: { Double(index) }, set: {
+                    model.stopReview(); selectedFiller = Int($0.rounded())
+                }), in: 0...Double(fillers.count - 1), step: 1)
+                .accessibilityLabel("見直すフィラー候補")
+                .accessibilityValue("\(index + 1)番目、\(clock(filler.start))、\(filler.text)")
+            }
+            HStack(alignment: .top, spacing: 14) {
+                VStack(spacing: 6) {
+                    Image(systemName: "waveform").font(.title2)
+                    Text(clock(filler.start)).font(.callout.monospacedDigit().bold())
+                }.frame(width: 76, height: 76)
+                    .background(Brand.green, in: RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("「\(filler.text)」").font(.title3.bold()).lineLimit(2)
+                    Text(filler.context).font(.subheadline).lineLimit(3)
+                    if let slide = filler.slide { Text("スライド \(slide)").font(.caption) }
+                }
+            }
+            HStack(spacing: 12) {
+                Button { model.stopReview(); selectedFiller = max(0, index - 1) } label: {
+                    Image(systemName: "backward.end.fill").frame(minWidth: 44, minHeight: 44)
+                }.disabled(index == 0).accessibilityLabel("前のフィラー候補")
+                Button {
+                    if model.isReviewPlaying { model.stopReview() }
+                    else { model.playReview(start: filler.start, end: filler.end) }
+                } label: {
+                    Label(model.isReviewPlaying ? "停止" : "この箇所を聞く",
+                          systemImage: model.isReviewPlaying ? "stop.fill" : "play.fill")
+                        .frame(maxWidth: .infinity)
+                }.buttonStyle(PrimaryButton()).disabled(!model.hasRecording || model.isBusy)
+                Button { model.stopReview(); selectedFiller = min(fillers.count - 1, index + 1) } label: {
+                    Image(systemName: "forward.end.fill").frame(minWidth: 44, minHeight: 44)
+                }.disabled(index == fillers.count - 1).accessibilityLabel("次のフィラー候補")
+            }
+            Text(model.hasRecording
+                 ? (model.isReviewPlaying ? "再生中 \(clock(model.reviewPosition))" : "前後2秒を含めて再生・フィラーは候補です")
+                 : "録音がないため再生できません")
+                .font(.caption)
+        }.card()
+    }
+
     private func metric(_ title: String, value: String, unit: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.caption)
@@ -191,7 +235,7 @@ struct AudioCaptureView: View {
     }
 
     private func clock(_ seconds: Double) -> String {
-        String(format: "%02d:%02d", Int(max(0, seconds)) / 60, Int(max(0, seconds)) % 60)
+        AudioTimeText.clock(seconds)
     }
 }
 

@@ -27,3 +27,11 @@ echo "Test artifacts: $test_dir"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/DirectPairing.swift" "$project_dir/Tests/PairingTicketTests.swift" -o "$test_dir/pairing-tests"
 "$test_dir/pairing-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
+  "$project_dir/Tests/AudioIdentityTests.swift" -o "$test_dir/audio-identity-tests"
+"$test_dir/audio-identity-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
+  "$project_dir/Tests/AudioReportValidationTests.swift" -o "$test_dir/audio-report-tests"
+"$test_dir/audio-report-tests"
