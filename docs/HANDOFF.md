@@ -26,7 +26,7 @@
 | 壁打ちの手順 | [skill](../.agents/skills/presentation-dialogue/SKILL.md) | 共通手順あり。各自の利用環境で実行 |
 | チーム・worktree | [TEAM](TEAM.md) | 1タスク・1担当・1branch・1worktree |
 | CI/CD | [DELIVERY](DELIVERY.md)、[確認範囲](CI_PREPARATION.md) | 移植済み。ネイティブCI/CDは有効化前 |
-| Slack | [共有構成](SLACK.md) | 通知コード・設定を移植。実到達は本PRで確認。AI返信は別途接続 |
+| Slack | [共有構成](SLACK.md) | マージ通知・スレッド・進捗通知は実配信確認済み。AI返信は別途接続 |
 | 技術上の引き継ぎ | [ARCHITECTURE](../specs/ARCHITECTURE.md) | 実装前の構成と接続契約案 |
 
 ## これまでの検討で決まったこと
