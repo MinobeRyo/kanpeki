@@ -44,6 +44,25 @@ def status(app, group, number, token):
         label = '内部状態: ' + detail.get('internalBuildState', '不明')
     return label, version
 
+def platform_results(number):
+    """Apple failures must not prevent the independent Slack status notification."""
+    try:
+        token = apple_token()
+    except Exception:
+        # Never expose key material or HTTP response bodies in Slack/logs.
+        print('Apple authentication unavailable; reporting unverified delivery status.')
+        token = None
+    results = []
+    for name, app, group, url_var in PLATFORMS:
+        label, version = '配布状態未確認（Apple接続エラー）', '未確認'
+        if token is not None:
+            try:
+                label, version = status(app, group, number, token)
+            except Exception:
+                print(f'{name}: Apple status unavailable; reporting as unverified.')
+        results.append((name, label, version, os.environ[url_var]))
+    return results
+
 def main():
     if os.environ.get('GITHUB_REF') != 'refs/heads/main':
         raise ValueError('Only trusted main may send release notifications')
@@ -67,11 +86,7 @@ def main():
     saved = json.loads(statefile.read_text()) if statefile.exists() else {}
     key = f'{run["id"]}/{run["run_attempt"]}'
     entry = saved.setdefault(key, {})
-    token = apple_token()
-    results = []
-    for name, app, group, url_var in PLATFORMS:
-        label, version = status(app, group, number, token)
-        results.append((name, label, version, os.environ[url_var]))
+    results = platform_results(number)
     summary = f'カンペき build {number}／CD: {run["conclusion"]}\n' + '\n'.join(f'{name} {version}：{label}' for name, label, version, _ in results)
     payload = {'channel': os.environ['SLACK_CHANNEL_ID'], 'text': summary,
                'unfurl_links': False, 'unfurl_media': False,
