@@ -14,7 +14,7 @@ bash scripts/check.sh phone
 
 Nodeは共通エンジンの回帰テスト、SwiftはJavaScriptCoreへの接続と結果集計。core/mac/phoneは既存のチーム検証手順。実動画の一般精度を採点する試験ではない。
 
-Kanpeki.xcworkspaceをXcodeで開き、KanpekiMacまたはKanpekiPhoneで起動する。Macは右の準備パネルの「カメラ分析」、iPhoneは「…」の「カメラの設定・結果」から準備画面を開く。撮影対象を確認して開始し、パネルを閉じて元のスライド画面へ戻る。分析なしでも元の画面に進める。カメラ解析の終了は詳細パネルから操作する。
+Kanpeki.xcworkspaceをXcodeで開き、KanpekiMacまたはKanpekiPhoneで起動する。Macは右の準備パネルの「カメラ分析」、iPhoneはメニュー→その他→「カメラ」から準備画面を開く。撮影対象を確認して開始し、パネルを閉じて元のスライド画面へ戻る。分析なしでも元の画面に進める。カメラ解析の終了は詳細パネルから操作する。
 
 シミュレーターは画面確認用で、カメラ解析は実機が必要。実機署名・TestFlightは既存のAPP_SETUP／CD手順を使う。
 

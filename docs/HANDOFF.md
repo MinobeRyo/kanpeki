@@ -17,8 +17,8 @@
 | 対象 | 正本 | 状態 |
 |---|---|---|
 | ロゴと配色 | [BRAND](../specs/BRAND.md)、[原本](../assets/brand/app-icon.png) | Xcode組込み済み（#24）。配布版はSTATUSで確認 |
-| 画面遷移 | [仕様](../specs/SCREEN_FLOW.md)、[画像](../assets/design/screen-flow/iphone-states.png) | 設計済み。通信・操作未検証 |
-| 案内・分析 | [仕様](../specs/ASSISTANCE_FLOW.md)、[画像](../assets/design/assistance/screens.png) | 設計済み。モデル・性能未確定 |
+| 画面遷移 | [仕様](../specs/SCREEN_FLOW.md)、[画像](../assets/design/screen-flow/iphone-states.png) | 基本通信・手動操作は部分実装済み。全遷移の実機受入は別 |
+| 案内・分析 | [仕様](../specs/ASSISTANCE_FLOW.md)、[画像](../assets/design/assistance/screens.png) | カメラ・音声・終了結果は部分実装済み。翻訳・統一結果・実精度は残件 |
 | iPhone発表中 | [画像](../assets/design/device-size/iphone-live.png) | 画像モック |
 | iPhone接続 | [画像](../assets/design/device-size/iphone-connect.png) | 画像モック |
 | Mac準備 | [画像](../assets/design/device-size/mac-preparation.png) | 画像モック |
