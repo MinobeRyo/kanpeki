@@ -13,6 +13,8 @@ struct ScreenReview: View {
     @State private var pointer: CGPoint?
     @State private var dragged = false
     @State private var showTranslation = false
+    @State private var showTimeAdjustment = false
+    @State private var sampleDuration: Double = 300
     @State private var resultTab = 0
     private let ink = Color(red: 92/255, green: 102/255, blue: 115/255)
     private let paper = Color(red: 249/255, green: 255/255, blue: 230/255)
@@ -45,6 +47,22 @@ struct ScreenReview: View {
         }
         .padding(16).background(mint.ignoresSafeArea()).foregroundStyle(ink)
         .tint(ink).preferredColorScheme(.light)
+        .sheet(isPresented: $showTimeAdjustment) {
+            TimeAdjustmentFlow(initialSeconds: sampleDuration, isSample: true) { seconds in
+                sampleDuration = seconds
+                return true
+            }
+        }
+        .sheet(isPresented: $showTranslation) {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("翻訳・原稿チェック").font(.title2.bold())
+                Text("この機能は準備中です。入力を求めず、使えるようになってから段階的に案内します。")
+                Button("閉じる") { showTranslation = false }.buttonStyle(BrandPrimaryButtonStyle())
+            }.padding(24)
+            #if os(macOS)
+            .frame(width: 400, height: 260)
+            #endif
+        }
         .onChange(of: step) { _, _ in pointer = nil; dragged = false }
         #if os(macOS)
         .frame(minWidth: 440, idealWidth: 480, minHeight: 700, idealHeight: 800)
@@ -75,16 +93,15 @@ struct ScreenReview: View {
                 sampleSlide.interactive(false).aspectRatio(16/9, contentMode: .fit)
                 HStack { Text("研究発表.pptx").font(.headline); Spacer(); Text("3枚").font(.caption) }
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack { Text("発表時間"); Spacer(); Text("5分").fontWeight(.semibold) }
-                    Divider()
-                    Button { showTranslation.toggle() } label: { Label("翻訳・原稿チェック", systemImage: "text.bubble") }
-                    if showTranslation {
-                        Text("Macで処理する画面の見本").font(.caption)
-                        Text("本研究では、結果を比較します。").font(.body)
-                        Text("In this study, we compare the results.").font(.body)
-                        Text("提案：最初に比較の目的を伝える。").font(.callout)
-                        Text("翻訳・分析処理は未接続です。").font(.caption).foregroundStyle(.secondary)
+                    Button { showTimeAdjustment = true } label: {
+                        HStack {
+                            Text("時間を調整"); Spacer()
+                            Text(PresentationTimerText.time(sampleDuration)).monospacedDigit()
+                            Image(systemName: "chevron.right")
+                        }.frame(minHeight: 44)
                     }
+                    Divider()
+                    Button { showTranslation = true } label: { Label("翻訳・原稿チェック", systemImage: "text.bubble") }
                 }.padding(20).background(paper, in: RoundedRectangle(cornerRadius: 20))
                 helper("準備ができたら、ここだよ")
                 Button { step = .live } label: { Text("発表画面へ").frame(maxWidth: .infinity, minHeight: 44) }
@@ -99,7 +116,7 @@ struct ScreenReview: View {
                 VStack(spacing: 20) {
                     VStack(spacing: 3) {
                         Text("残り時間の見本").font(.caption)
-                        Text("02:40").font(.system(size: 56, weight: .bold, design: .rounded)).monospacedDigit()
+                        Text(PresentationTimerText.time(sampleDuration)).font(.system(size: 56, weight: .bold, design: .rounded)).monospacedDigit()
                     }.padding(.top, 8)
                     VStack(alignment: .leading, spacing: 16) {
                         Text("原稿").font(.caption.bold())
