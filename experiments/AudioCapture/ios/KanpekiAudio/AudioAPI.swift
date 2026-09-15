@@ -184,3 +184,63 @@ struct AudioReviewRange {
         end = min(duration, candidateEnd + 2)
     }
 }
+
+/// UI-only chapters: no new detection, score or cross-device clock conversion.
+struct AudioReviewChapter: Identifiable, Equatable {
+    enum Kind: Int { case filler, quiet }
+    let kind: Kind
+    let sourceIndex: Int
+    let start: Double
+    let end: Double
+    let text: String
+    let context: String
+    let slide: Int?
+    var id: String { "\(kind.rawValue):\(sourceIndex)" }
+    var label: String { kind == .filler ? "フィラー候補" : "低音量区間" }
+
+    static func make(from report: AudioReport) -> [Self] {
+        // The API validates reports. Keep this pure UI boundary safe for local callers too.
+        guard report.duration.isFinite, (0.1...900).contains(report.duration) else { return [] }
+        func valid(_ start: Double, _ end: Double) -> Bool {
+            start.isFinite && end.isFinite && start >= 0 && end > start &&
+                start < report.duration && end <= report.duration + 0.001001
+        }
+        var chapters = (report.fillerCandidates ?? []).enumerated().compactMap { index, item -> Self? in
+            guard valid(item.start, item.end) else { return nil }
+            return Self(kind: .filler, sourceIndex: index, start: item.start, end: item.end,
+                        text: item.text, context: item.context, slide: item.slide)
+        }
+        chapters += report.quietIntervals.enumerated().compactMap { index, item -> Self? in
+            guard valid(item.start, item.end) else { return nil }
+            return Self(kind: .quiet, sourceIndex: index, start: item.start, end: item.end,
+                        text: "低音量が続いた区間", context: "小さい声や意図的な間も含みます。失敗の判定ではありません。",
+                        slide: nil)
+        }
+        // Keep distinct detections, including identical timestamps, in deterministic order.
+        return chapters.sorted {
+            if $0.start != $1.start { return $0.start < $1.start }
+            if $0.end != $1.end { return $0.end < $1.end }
+            if $0.kind != $1.kind { return $0.kind.rawValue < $1.kind.rawValue }
+            return $0.sourceIndex < $1.sourceIndex
+        }
+    }
+}
+
+/// A timer/notification queued by an old player cannot control the next player.
+struct AudioReviewPlaybackGate {
+    private(set) var playbackID: UUID?
+    private(set) var recordingID: UUID?
+    private(set) var contextID: UUID?
+
+    mutating func begin(recordingID: UUID, contextID: UUID) -> UUID {
+        let id = UUID()
+        self.playbackID = id
+        self.recordingID = recordingID
+        self.contextID = contextID
+        return id
+    }
+    func accepts(_ playbackID: UUID, recordingID: UUID?, contextID: UUID) -> Bool {
+        self.playbackID == playbackID && self.recordingID == recordingID && self.contextID == contextID
+    }
+    mutating func invalidate() { playbackID = nil; recordingID = nil; contextID = nil }
+}
