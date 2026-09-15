@@ -1,0 +1,37 @@
+name: MCP integration
+on:
+  pull_request:
+    paths:
+      - 'apps/SlidePacer/**'
+      - 'integrations/mcp/**'
+      - 'Kanpeki.xcworkspace/**'
+      - 'Makefile'
+      - '.github/workflows/mcp.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mcp-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: integrations/mcp/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: integrations/mcp
+      - run: npm test
+        working-directory: integrations/mcp
+  preparation:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: make slidepacer-test
+      - run: make slidepacer-build

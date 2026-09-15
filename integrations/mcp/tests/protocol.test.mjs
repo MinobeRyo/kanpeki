@@ -1,0 +1,26 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import {randomUUID} from 'node:crypto';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {ExchangeStore} from '../store.mjs';
+test('SDK discovers tools and roundtrips source IDs while missing live data fails closed', {timeout:60000}, async t=>{
+ const directory=await mkdtemp(join(tmpdir(),'kanpeki-protocol-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+ const store=new ExchangeStore(directory);const requestID=randomUUID();
+ await store.write('analysis-request.json',{schemaVersion:1,requestID,status:'pending',pages:[{slideIndex:1,body:'Measured 20; not production verified',notes:'Use the original condition',points:[{id:'s1b1',text:'Measured 20; not production verified'}]}]});
+ const beat=()=>store.write('analysis-lease.json',{requestID,updatedAt:Date.now()/1000});await beat();
+ const timer=setInterval(()=>{void beat();},1000);t.after(()=>clearInterval(timer));
+ const transport=new StdioClientTransport({command:process.execPath,args:[resolve('server.mjs'),'--stdio'],env:{...process.env,KANPEKI_MCP_DIR:directory},stderr:'pipe'});
+ const client=new Client({name:'kanpeki-regression',version:'1.0.0'});t.after(()=>client.close());await client.connect(transport);
+ const tools=await client.listTools();assert.deepEqual(tools.tools.map(x=>x.name).sort(),['get_analysis_status','get_live_state','get_practice_report','get_presentation','submit_analysis','submit_practice_analysis']);
+ const read=await client.callTool({name:'get_presentation',arguments:{source:'preparation'}});assert.ok(!read.isError);const data=JSON.parse(read.content[0].text);assert.equal(data.pages[0].body,'Measured 20; not production verified');assert.equal(data.requestID,requestID);
+ assert.equal((await client.callTool({name:'get_live_state',arguments:{}})).isError,true);
+ const result={requestID,direction:{focusPages:[1],supportingPages:[]},selections:[{slideIndex:1,selection:{coreIDs:['s1b1'],detailIDs:[],role:'evidence',priority:5}}]};
+ const submit=await client.callTool({name:'submit_analysis',arguments:result});assert.ok(!submit.isError);assert.equal(JSON.parse(submit.content[0].text).applied,false);
+ await store.write('analysis-feedback.json',{requestID,status:'completed'});
+ assert.equal(JSON.parse((await client.callTool({name:'get_analysis_status',arguments:{}})).content[0].text).status,'completed');
+ const invalid=await client.callTool({name:'submit_analysis',arguments:{...result,requestID:'invalid'}});assert.equal(invalid.isError,true);
+});

@@ -1,0 +1,18 @@
+{
+  "evaluatedAt": "2026-09-10",
+  "model": "qwen3.5:9b",
+  "modelDigest": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
+  "quantization": "Q4_K_M",
+  "ollamaVersion": "0.33.3",
+  "recommendedTemperature": 0,
+  "appInitialTemperature": 0.7,
+  "num_ctx": 16384,
+  "pageOutputLimit": 768,
+  "think": false,
+  "top_p": 0.8,
+  "top_k": 20,
+  "min_p": 0,
+  "presence_penalty": 1.5,
+  "repeat_penalty": 1,
+  "note": "Configuration metadata only; the app does not load this file. Obtain model weights separately using Ollama."
+}
