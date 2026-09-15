@@ -26,9 +26,12 @@ public struct PresentationResultAssociation {
         if phase == .running || phase == .paused {
             let observedStart = previousPhase == .ready && phase == .running
             let newCapture = previousPhase == .running || previousPhase == .paused
-            if activeCamera && (observedStart || (newCapture && camera.id != previousCameraID)) {
+            // SwiftUI may coalesce preparing → denied/failed. A genuinely new ID
+            // witnessed during this presentation still belongs to this attempt.
+            let newAttempt = newCapture && camera.id != nil && camera.id != previousCameraID
+            if (activeCamera && observedStart) || newAttempt {
                 cameraID = camera.id
-                baseline = liveSummary
+                baseline = newAttempt ? CameraSummary() : liveSummary
             }
         }
         if phase == .ended { self.elapsedSeconds = elapsedSeconds }

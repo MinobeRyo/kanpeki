@@ -2,6 +2,25 @@ import XCTest
 @testable import KanpekiCamera
 
 final class PresentationResultAssociationTests: XCTestCase {
+    func testCoalescedNewCaptureTerminalStateKeepsFailureReason() {
+        for terminal in [CameraResult.Status.permissionDenied, .failed("immediate failure"), .cancelled] {
+            var association = PresentationResultAssociation()
+            var camera = CameraResult(); let session = UUID()
+            let previousID = UUID()
+            camera.begin(id: previousID, subject: .audience)
+            camera.update(id: previousID, status: .completed)
+            association.observe(sessionID: session, phase: .running, elapsedSeconds: 20, camera: camera, liveSummary: .init())
+            XCTAssertNil(association.cameraID)
+            let newID = UUID()
+            camera.begin(id: newID, subject: .audience)
+            camera.update(id: newID, status: terminal)
+            association.observe(sessionID: session, phase: .running, elapsedSeconds: 21, camera: camera, liveSummary: .init())
+            association.observe(sessionID: session, phase: .ended, elapsedSeconds: 22, camera: camera, liveSummary: .init())
+            XCTAssertEqual(association.cameraResult(from: camera)?.status, terminal)
+            XCTAssertEqual(association.cameraID, newID)
+        }
+    }
+
     func testPreparationCaptureExcludesBaselineAndUsesTimerElapsed() {
         var association = PresentationResultAssociation()
         let session = UUID(), capture = UUID()

@@ -73,7 +73,7 @@ struct PresentationResultsButton: View {
                             }
                             Text("カメラ結果は他端末と同期しません。画面確認モードのサンプルとは別の実測結果です。")
                                 .font(.footnote)
-                            Button("準備に戻る") { presented = false }.buttonStyle(.borderedProminent)
+                            Button("閉じる") { presented = false }.buttonStyle(.borderedProminent)
                         }.padding(24).frame(maxWidth: 560, alignment: .leading)
                     }
                     .background(Color(red: 249/255, green: 1, blue: 230/255))
