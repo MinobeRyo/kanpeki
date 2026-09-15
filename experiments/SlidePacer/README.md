@@ -45,4 +45,4 @@ xcodebuild -project SlidePacer.xcodeproj -scheme SlidePacer \
 
 回帰テストはMacのSwiftコンパイラーとPython 3を使用します。その他の `scripts/` は過去の精度比較用で、個別の `evaluation/` 入力ファイルが必要です。個人資料・元資料の本文を含む評価ファイル・モデル・ビルド成果物は同梱していません。
 
-[検証結果と制約](docs/VALIDATION.md) · [共有作業Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12)
+[検証結果と制約](docs/VALIDATION.md) · [統合作業Issue #34](https://github.com/MinobeRyo/kanpeki/issues/34)

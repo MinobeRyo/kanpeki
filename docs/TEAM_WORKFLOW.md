@@ -14,7 +14,7 @@ Issueの担当者、状態ラベル、最新の進捗コメントで「誰が何
 
 ## メンバー（担当を推測しない）
 
-| GitHub | 現在確認できている担当 |
+| GitHub | 初期記録（現在の担当ではない） |
 |---|---|
 | takurateruyoshi | スライド読み込み・Mac/iPhone連携。現在の状態は担当Issueを参照 |
 | ini-ei | 現在の担当は本人の申告待ち |
@@ -42,7 +42,7 @@ python3 scripts/team.py start 2 slide-sync
 python3 scripts/team.py report --state doing --body-file /tmp/progress.md
 ```
 
-`progress.md` に「目的、変更予定のファイル、今回の完了条件」を書く。レビュー待ちは `--state review`、困っている場合は `blocked`、次に再開する状態は `todo`。完了時は `done` と検証結果を報告し、PRマージ後にIssueを閉じる。reportはIssueを勝手にcloseしない。
+`progress.md` に「目的、変更予定のファイル、今回の完了条件」を書く。レビュー待ちは `--state review`、困っている場合は `blocked`、再開時は最新Issueを確認し、実作業開始を `doing` で報告する。完了時は `done` と検証結果を報告し、PRマージ後にIssueを閉じる。reportはIssueを勝手にcloseしない。
 
 startはoriginのデフォルトbranchをfetchし、隣の `<repo>-worktrees/<login>/` に `work/<login>/<issue>-<slug>-<短いID>` branchを作成する。削除は自動では行わない。マージと未コミット変更の有無を確認して `git worktree remove PATH` を実施する。`--force`は使わない。
 紐付け情報は `git rev-parse --git-path kanpeki-task.json` に保存されるためworktreeごとに独立し、Git管理外。DerivedDataも各worktreeの `.build/` に分離する。

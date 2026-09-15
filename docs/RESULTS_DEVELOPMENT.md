@@ -30,6 +30,6 @@ Macの準備パネルとiPhoneの「…」→発表時間に、タイマー終�
 
 カメラは当端末の結果と明示。カメラの一時停止連動はないため、発表タイマーの実測時間とカメラ計測の秒数は異なる場合がある。既存CameraPanelの個別結果は撮影全体の集計を保ち、発表結果パネルだけが準備期間を差し引く。画面確認モードのサンプルとは接続しない。
 
-音声分析は未接続と表示し、フィラー・間・改善候補や再生ボタンを作らない。Issue #13全体は実機受け入れと残件があるため未完了として残す。
+共通終了サマリーの音声詳細は未接続。別のiPhone音声画面では同発表の録音分析結果・フィラー候補と保持音声の聞き直しを利用できる（[AUDIO_CAPTURE](AUDIO_CAPTURE.md)、[FILLER_CHAPTERS](../specs/FILLER_CHAPTERS.md)）。共通サマリーの改善候補・統一時系列は未実装。Issue #13全体は実機受け入れと残件があるため未完了として残す。
 
 検証は `swift test`、`npm test`、`bash scripts/check.sh core`、`bash scripts/check.sh mac`、`bash scripts/check.sh phone`。実機カメラ権限・バックグラウンド中断・SwiftUI削除操作の実機検証は別途必要。

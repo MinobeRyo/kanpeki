@@ -2,7 +2,7 @@
 
 TestFlight版の準備・配布状態は[MAC_TESTFLIGHT.md](MAC_TESTFLIGHT.md)を参照。以下はDeveloper ID版の導入手順です。
 
-Mac配布版はDeveloper ID署名とApple公証に成功したDMGのみを公開します。署名用SecretsとMac distributionは設定済みです。配布できる版は[GitHub Releases](https://github.com/MinobeRyo/kanpeki/releases)とSlackのMac配布通知で確認してください。最新の作業状況は[Issue #17](https://github.com/MinobeRyo/kanpeki/issues/17)に記録します。
+Mac配布版はDeveloper ID署名とApple公証に成功したDMGのみを公開します。以下は移植元のDeveloper ID配布手順で、現repoのDMG配布成功・現在のSecrets有効性は本監査では未確認。主経路の両内部TestFlightは成功記録があります（[STATUS](STATUS.md)）。配布できる版は[GitHub Releases](https://github.com/MinobeRyo/kanpeki/releases)とSlackのMac配布通知で確認してください。最新の作業状況は[Issue #28](https://github.com/MinobeRyo/kanpeki/issues/28)に記録します。
 
 Slackの「Mac版をダウンロード」から入手できます。非公開GitHubのため初回は招待受諾済みアカウントでログインしてください。macOS 14以降、Apple Silicon/Intel両対応。
 
