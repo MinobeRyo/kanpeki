@@ -12,4 +12,8 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/Models.swift" "$project_dir/Shared/PresentationTimer.swift" \
   "$project_dir/Tests/TimerTests.swift" -o "$test_dir/timer-tests"
 "$test_dir/timer-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/PresentationNotificationPolicy.swift" \
+  "$project_dir/Tests/NotificationTests.swift" -o "$test_dir/notification-tests"
+"$test_dir/notification-tests"
 echo "Test artifacts: $test_dir"
