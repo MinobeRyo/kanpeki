@@ -102,7 +102,7 @@ import UniformTypeIdentifiers
         sharingAttemptID = attempt
         disableControl()
         sharedWindow = window
-        state = PresentationState()
+        state = stateWithoutSharing()
         resetPointer()
         invalidateFrames(newSession: true)
         state.title = window.window.owningApplication?.applicationName ?? "画面共有"
@@ -216,7 +216,7 @@ import UniformTypeIdentifiers
         await capture.stop()
         guard sharingAttemptID == attempt else { return }
         sharedWindow = nil
-        state = PresentationState()
+        state = stateWithoutSharing()
         state.message = "Macが共有を停止しました"
         publishState()
     }
@@ -454,5 +454,12 @@ import UniformTypeIdentifiers
         state.timer?.isFinishing = timerFinishing
         timerReceivedAt = now
         link.send(WireMessage(kind: "state", state: state))
+    }
+
+    private func stateWithoutSharing() -> PresentationState {
+        var value = PresentationState()
+        value.timer = presentationTimer.snapshot(at: TimerClock.now)
+        value.timer?.isFinishing = timerFinishing
+        return value
     }
 }

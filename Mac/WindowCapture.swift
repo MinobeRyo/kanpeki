@@ -16,7 +16,7 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     @Published var sharing = false
     @Published private(set) var needsScreenPermission = !CGPreflightScreenCaptureAccess()
     @Published private(set) var refreshing = false
-    @Published var message = "「ウィンドウを探す」で画面収録を許可してください"
+    @Published var message = "画面収録を許可して共有画面を選んでください"
     var onJPEG: ((Data) -> Void)?
     var onStopped: (() -> Void)?
     var usesObservedSnapshots = false
@@ -49,7 +49,10 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
                 $0.owningApplication?.processID != ProcessInfo.processInfo.processIdentifier && $0.windowLayer == 0 && $0.frame.width > 160 && $0.frame.height > 100
             }.map(CaptureWindow.init).sorted { $0.label < $1.label }
             message = windows.isEmpty ? "共有できるウィンドウがありません。スライドショーを開いてください" : "発表用スライドのウィンドウを選んでください（ノート表示画面に注意）"
-        } catch { message = "画面取得に失敗しました。画面収録の許可を確認してください: \(error.localizedDescription)" }
+        } catch {
+            needsScreenPermission = !CGPreflightScreenCaptureAccess()
+            message = "画面取得に失敗しました。画面収録の許可を確認してください: \(error.localizedDescription)"
+        }
     }
 
     @MainActor func openScreenPermissionSettings() {
@@ -88,6 +91,7 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
         } catch {
             guard lifecycleID == attempt else { return }
             _ = clearStreamState()
+            needsScreenPermission = !CGPreflightScreenCaptureAccess()
             message = "共有を開始できません: \(error.localizedDescription)"
         }
     }
