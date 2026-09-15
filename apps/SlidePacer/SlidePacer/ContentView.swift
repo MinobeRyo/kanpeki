@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import FoundationModels
 import UniformTypeIdentifiers
 import Compression
 #if canImport(UIKit)
@@ -316,49 +315,27 @@ struct ImportPayload: Decodable {
 }
 
 // MARK: - LLM出力モデル
-
-@Generable(description: "1枚のスライドに対する時間配分の評価")
 struct SlideWeight: Codable {
-    @Guide(description: "スライド番号（1始まり）")
     let slideIndex: Int
-
-    @Guide(description: "重要度スコア。0.0〜1.0の範囲。1.0が最重要")
     let importanceScore: Double
-
-    @Guide(description: "推奨時間（秒）")
     let recommendedSeconds: Int
-
-    @Guide(description: "この配分にした理由。日本語で1〜2文")
     let reason: String
-
-    @Guide(description: "説明の詳しさ。詳しく・要点のみ・省略のいずれか")
     let treatment: String
-    @Guide(description: "このページで必ず伝える要点。省略時は空文字")
     let talkingPoints: String
-    @Guide(description: "今回は話さない内容とその理由")
     let omittedContent: String
-    @Guide(description: "選択した内容だけの発話原稿。省略時は空文字。資料にない事実を追加しない")
     let speakingScript: String
 }
-
-@Generable(description: "発表全体の時間配分プラン")
 struct WeightingPlan: Codable {
-    @Guide(description: "各スライドの時間配分結果")
     let slides: [SlideWeight]
-
-    @Guide(description: "全体の配分方針。日本語で1〜2文")
     let overallStrategy: String
 }
 
 // ページ単位の読解と、全体の時間制約を分離する。
-@Generable
 struct EditorialBrief: Codable {
     let core: String
     let detail: String
     let omit: String
-    @Guide(description: "title/problem/overview/solution/mechanism/value/closing")
     let role: String
-    @Guide(description: "発表全体への貢献。1〜5")
     let priority: Int
 }
 
@@ -372,8 +349,6 @@ struct SourcePoint: Codable {
     let slideIndex: Int
     let text: String
 }
-
-@Generable
 struct ExtractiveSelection: Codable {
     let coreIDs: [String]
     let detailIDs: [String]
@@ -385,8 +360,6 @@ struct PageSelection: Codable {
     let slideIndex: Int
     let selection: ExtractiveSelection
 }
-
-@Generable
 struct DeckDirection: Codable {
     let focusPages: [Int]
     let supportingPages: [Int]
@@ -490,32 +463,38 @@ enum DeckDirector {
 }
 
 enum SourceExtractor {
-    static func points(_ slide: SlideInput, index: Int) -> [SourcePoint] {
-        var notes = slide.notes.components(separatedBy: .newlines)
-        while let last = notes.last {
-            let value = last.trimmingCharacters(in: .whitespacesAndNewlines)
-            if value.isEmpty || value == String(index) || value.range(of: #"^\d{1,3}:\d{2}$"#, options: .regularExpression) != nil { notes.removeLast() }
-            else { break }
+    /// The same balanced units are used for source IDs and mandatory qualifications.
+    /// Never reconstruct punctuation or split a quoted condition into a new assertion.
+    private static func sentences(_ text: String, body: Bool = false, lineBreaks: Bool = false) -> [String] {
+        var result: [String] = [], unit = ""
+        let closingPairs: [Character: Character] = ["「": "」", "『": "』", "（": "）", "(": ")", "［": "］", "[": "]", "【": "】", "“": "”"]
+        var closingStack: [Character] = []
+        func flush() {
+            let value = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { result.append(value) }
+            unit = ""
         }
+        for character in text {
+            unit.append(character)
+            if character == "\"" {
+                if closingStack.last == character { closingStack.removeLast() }
+                else { closingStack.append(character) }
+            } else if let closing = closingPairs[character] { closingStack.append(closing) }
+            else if closingStack.last == character { closingStack.removeLast() }
+            if closingStack.isEmpty && ((lineBreaks && character == "\n") || (!body && "。！？".contains(character)) ||
+                ((body ? "。！？" : "\n").contains(character) && unit.trimmingCharacters(in: .whitespacesAndNewlines).count >= 60)) { flush() }
+        }
+        flush()
+        return result
+    }
+
+    static func points(_ slide: SlideInput, index: Int) -> [SourcePoint] {
+        // Plain text cannot distinguish a page/time footer from a real count or ratio.
+        // Keep ambiguous numeric lines; only the importer can know placeholder metadata.
         func units(_ text: String, prefix: String) -> [SourcePoint] {
-            var result: [SourcePoint] = [], unit = ""
-            func flush() {
-                let value = unit.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !value.isEmpty { result.append(SourcePoint(id: "s\(index)\(prefix)\(result.count + 1)", slideIndex: index, text: value)) }
-                unit = ""
+            sentences(text, body: prefix == "b").enumerated().map {
+                SourcePoint(id: "s\(index)\(prefix)\($0.offset + 1)", slideIndex: index, text: $0.element)
             }
-            // 引用や括弧内の疑問符で分割すると、閉じ括弧だけの原文IDになる。
-            // 対応する閉じ括弧までは同じ候補に保ち、引用外の文末で分ける。
-            let closingPairs: [Character: Character] = ["「": "」", "『": "』", "（": "）", "(": ")", "［": "］", "[": "]", "【": "】", "“": "”"]
-            var closingStack: [Character] = []
-            for character in text {
-                unit.append(character)
-                if let closing = closingPairs[character] { closingStack.append(closing) }
-                else if closingStack.last == character { closingStack.removeLast() }
-                if closingStack.isEmpty && ((prefix == "n" && "。！？".contains(character)) || ((prefix == "n" ? "\n" : "。！？").contains(character) && unit.trimmingCharacters(in: .whitespacesAndNewlines).count >= 60)) { flush() }
-            }
-            flush()
-            return result
         }
         // 列名つきの表行は1行を1候補にする。通常の本文は従来の段落単位を維持。
         var bodyPoints: [SourcePoint] = [], pending: [String] = []
@@ -531,7 +510,7 @@ enum SourceExtractor {
             } else { pending.append(line) }
         }
         appendBody(pending.joined(separator: "\n"))
-        return units(notes.joined(separator: "\n"), prefix: "n") + bodyPoints
+        return units(slide.notes, prefix: "n") + bodyPoints
     }
 
     /// 数値列が複数ある同一表の行を比較候補にする。順位・番号だけの列は数えない。
@@ -558,16 +537,16 @@ enum SourceExtractor {
     }
 
     static func qualifications(_ slide: SlideInput) -> [String] {
-        let notePattern = #"ただし|未検証|未実施|予備|ダミーデータ|断定|制限事項|実データ|場合|未満|[0-9０-９]+件以上|ないと|許可|権限|必要|だけ|のみ|変えない|変えていません|送信はしない|送信しません"#
+        let negative = #"(確認|検証|実証|保証)(していません|されていません|できません|しません|されない|できない|していない)|ではありません"#
+        let notePattern = #"ただし|未検証|未実施|予備|ダミーデータ|断定|制限事項|実データ|場合|未満|[0-9０-９]+件以上|ないと|許可|権限|必要|だけ|のみ|変えない|変えていません|送信はしない|送信しません|"# + negative
         // 本文だけにある否定・評価条件も守る。本文の一般的な「必要」等は表全体を拾うため除く。
-        let bodyPattern = #"未検証|未実施|未走査|走査できていない|予備評価|予備的|予備実験の|ダミーデータ|断定|実データ|ないと|許可|権限|変えない|変えていません|送信はしない|送信しません"#
-        func sentences(_ text: String, pattern: String) -> [String] {
-            text.components(separatedBy: "。").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty && $0.range(of: pattern, options: .regularExpression) != nil }.map { $0 + "。" }
+        let bodyPattern = #"未検証|未実施|未走査|走査できていない|予備評価|予備的|予備実験の|ダミーデータ|断定|実データ|ないと|許可|権限|変えない|変えていません|送信はしない|送信しません|"# + negative
+        func matching(_ text: String, pattern: String) -> [String] {
+            sentences(text).filter { $0.range(of: pattern, options: .regularExpression) != nil }
         }
-        let notes = sentences(slide.notes, pattern: notePattern)
+        let notes = matching(slide.notes, pattern: notePattern)
         // 本文の表は句点を含まないことが多い。条件行だけを補い、直前の表全体を必須扱いしない。
-        let body = slide.body.components(separatedBy: .newlines).flatMap { sentences($0, pattern: bodyPattern) }
+        let body = sentences(slide.body, lineBreaks: true).filter { $0.range(of: bodyPattern, options: .regularExpression) != nil }
         var seen = Set<String>()
         return (notes + body).filter { seen.insert($0).inserted }
     }
@@ -592,6 +571,46 @@ enum SourceExtractor {
         let firstNote = slide.notes.split(separator: "。").first.map(String.init) ?? ""
         if body.hasPrefix("目次") || firstNote.contains("全体像") || firstNote.contains("機能の一覧") || firstNote.contains("まとめると") { return "overview" }
         return nil
+    }
+
+    /// Only explicit, consecutively numbered lists are completed. Never invent missing items.
+    private static func completeEnumerations(core: inout Set<String>, detail: inout Set<String>, points: [SourcePoint]) throws {
+        func number(_ text: String) -> Int? {
+            Int(text) ?? ["一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10][text]
+        }
+        func captured(_ text: String, _ pattern: String) -> String? {
+            guard let expression = try? NSRegularExpression(pattern: pattern),
+                  let match = expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  let range = Range(match.range(at: 1), in: text) else { return nil }
+            return String(text[range])
+        }
+        func origin(_ point: SourcePoint) -> String {
+            point.id.replacingOccurrences(of: #"\d+$"#, with: "", options: .regularExpression)
+        }
+        for index in points.indices {
+            let text = points[index].text
+            guard let raw = captured(text, #"([0-9]{1,2}|[一二三四五六七八九十])(?:つ|点|項目)(?:あります|です|を挙げます)"#),
+                  let count = number(raw), (2...32).contains(count) else { continue }
+            // A source point already containing the whole list cannot be partially selected.
+            if sentences(text).count > 1 { continue }
+            var group: Set<String> = [points[index].id]
+            var found = 0
+            for offset in 1...count {
+                let next = index + offset
+                guard next < points.count, origin(points[next]) == origin(points[index]),
+                      let ordinal = captured(points[next].text, #"^第([0-9]{1,2}|[一二三四五六七八九十])(?:は|に|、|：|:|点|項)"#),
+                      number(ordinal) == offset else { break }
+                group.insert(points[next].id)
+                found += 1
+            }
+            let inCore = !core.isDisjoint(with: group)
+            guard inCore || !detail.isDisjoint(with: group) else { continue }
+            guard found == count else {
+                throw OllamaError.decodeFailed("列挙の宣言と項目が一致しません。原文を確認し、列挙全体を選び直してください。")
+            }
+            if inCore { core.formUnion(group); detail.subtract(group) }
+            else { detail.formUnion(group) }
+        }
     }
 
     static func brief(_ selection: ExtractiveSelection, points: [SourcePoint], roleHint: String?, source: SlideInput? = nil) throws -> EditorialBrief {
@@ -625,8 +644,9 @@ enum SourceExtractor {
         }
         // 同じIDの重複は集合で一つにし、主張と詳細の両方にある場合は主張を優先する。
         // モデルの生出力はpageSelectionsに残す。未知IDや件数超過は補正せず拒否する。
-        let coreIDs = withContext(selection.coreIDs)
-        let detailIDs = withContext(selection.detailIDs).subtracting(coreIDs)
+        var coreIDs = withContext(selection.coreIDs)
+        var detailIDs = withContext(selection.detailIDs).subtracting(coreIDs)
+        try completeEnumerations(core: &coreIDs, detail: &detailIDs, points: points)
         let keptIDs = coreIDs.union(detailIDs)
         func join(_ ids: Set<String>) -> String {
             points.filter { ids.contains($0.id) }.map(\.text).joined(separator: "\n")
@@ -1112,6 +1132,7 @@ private struct WholeRowDisclosureStyle: DisclosureGroupStyle {
 }
 
 struct ContentView: View {
+    var sharedFolder: URL? = nil
     @State private var theme: String = ""
     @State private var totalMinutes: Double = 10
     @State private var presentationGoal = ""
@@ -1201,6 +1222,14 @@ struct ContentView: View {
                 backendSection.disabled(isGenerating)
                 presetSection.disabled(isGenerating)
                 importSection.disabled(isGenerating)
+                Section("本体の原稿へ届ける") {
+                    Button("Mac本体の資料を読み込む") {
+                        do { slides = try mcp.loadMainDeck(); invalidateAnalysis() }
+                        catch { errorMessage = error.localizedDescription }
+                    }.disabled(isGenerating || mcp.folder == nil)
+                    Text("同じ共有フォルダーの資料を使います。分析後、本体で要点案を確認・採用できます。完成原稿や翻訳ではありません。")
+                        .font(.caption)
+                }
                 basicInfoSection.disabled(isGenerating)
                 slidesSection.disabled(isGenerating)
                 promptTuningSection
@@ -1249,6 +1278,13 @@ struct ContentView: View {
             }
         }
         #endif
+        }
+            .task {
+            if let sharedFolder, mcp.folder == nil {
+                mcp.useFolder(sharedFolder)
+                do { slides = try mcp.loadMainDeck(); invalidateAnalysis() }
+                catch { reportMessage = error.localizedDescription }
+            }
         }
     }
 
@@ -1620,6 +1656,7 @@ struct ContentView: View {
     }
 
     private func invalidateAnalysis() {
+        mcp.invalidateNotes()
         if plan != nil || errorMessage != nil { analysisNotice = "入力や設定が変わりました。もう一度分析してください。" }
         plan = nil
         errorMessage = nil
@@ -1684,6 +1721,7 @@ struct ContentView: View {
                     plan = try EditorialPlanner.assemble(lastBriefs, slideCount: slides.count, budget: totalSeconds)
                     lastReportData = buildReportJSON(plan: plan)
                     if let data = lastReportData { try mcp.saveReport(data) }
+                    try mcp.saveNotes(lastBriefs)
                     mcp.finish("completed", message: "原文照合と時間配分が完了しました")
                     break
                 }

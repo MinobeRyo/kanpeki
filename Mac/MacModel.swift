@@ -25,6 +25,9 @@ import UniformTypeIdentifiers
     @Published var mcpStatus = "ChatGPT連携は停止中"
     @Published var practiceAnalysisStatus = "発表終了後にまとめて分析できます"
     @Published private(set) var practiceAnalysis: PracticeAnalysisResult?
+    @Published private(set) var preparationNotes = PreparationNotesSelection()
+    @Published var preparationNotesStatus = "Macの資料を準備アプリで分析してから確認できます"
+    private var notesConnectionID = UUID()
     private var localCameraFacts: [PracticeFact] = []
     private var localCameraPresentationID: UUID?
     private var analysisSharingID: UUID?
@@ -75,6 +78,8 @@ import UniformTypeIdentifiers
                 self.cancelPresentationStart()
             }
             self.requests = RequestDeduplicator()
+            self.notesConnectionID = UUID()
+            self.preparationNotes.cancel()
             self.phoneEvidence = PhoneEvidenceReceiver()
             if self.mcpFolder != nil { self.analysisSharingID = UUID() }
             self.invalidatePracticeAnalysis()
@@ -296,6 +301,10 @@ import UniformTypeIdentifiers
                     mcpDeckMatchesObservation = true
                     state.notes = slide.notes
                     state.notesStatus = slide.notes.isEmpty ? "このスライドの発表者ノートは空です" : "保存済みpptxから取得した原稿（編集後は再取込）"
+                    if let text = preparationNotes.text(slideID: slide.id, index: slide.index, deckVersion: mcpDeckVersion) {
+                        state.notes = text
+                        state.notesStatus = "採用した要点案（原文は保持）"
+                    }
                 } else { state.notesStatus = "表示中の資料とpptxが一致しません。保存後に同じファイルを再取込してください" }
             } else { state.notesStatus = "発表者ノートを表示するにはpptxを読み込んでください" }
             if state.frameIdentity?.slideID != position.id || state.frameIdentity?.slideIndex != position.index || lastObservedPath != position.path {
@@ -371,6 +380,7 @@ import UniformTypeIdentifiers
                 selectedWindowID = nil
                 powerPointOpened = false
                 errorMessage = nil
+                preparationNotes.clear()
                 mcpDeckMatchesObservation = false
                 mcpDeckVersion = UUID()
                 publishState()
@@ -498,6 +508,24 @@ import UniformTypeIdentifiers
         state.pointerSessionID = UUID()
     }
 
+    private var audioConnection: PresentationAudioConnection?
+    private var practicing = false
+    var preparationFolder: URL? { mcpFolder }
+
+    func updateAudioConnection(address: String?, token: String) {
+        let connection = address.map { PresentationAudioConnection(address: $0, token: token) }
+        audioConnection = connection?.isValid == true ? connection : nil
+        publishState()
+    }
+
+    func beginPractice() {
+        guard state.timer?.phase == .ready, !timerFinishing, !presentationStarting,
+              !importing, !openingDocument, link.connectedName != nil, audioConnection != nil else { return }
+        if state.timer?.durationSeconds == nil { timerAction(.configure, duration: 300) }
+        practicing = true
+        timerAction(.start, duration: nil)
+    }
+
     func timerAction(_ action: PresentationTimerAction, duration: Double?) {
         let snapshot = presentationTimer.snapshot(at: TimerClock.now)
         applyTimer(PresentationTimerCommand(sessionID: snapshot.sessionID, revision: snapshot.revision,
@@ -507,9 +535,10 @@ import UniformTypeIdentifiers
     private func applyTimer(_ command: PresentationTimerCommand, fromPreparation: Bool = false) {
         guard !timerFinishing else { publishState(); return }
         guard !presentationStarting || fromPreparation else { publishState(); return }
-        guard command.action != .start || (capture.sharing && state.frameReady == true &&
+        guard command.action != .start || (practicing && link.connectedName != nil && audioConnection != nil) || (capture.sharing && state.frameReady == true &&
             (sharedWindow?.isPowerPoint != true || (monitoring && state.canControl))) else { publishState(); return }
         let applied = presentationTimer.apply(command, at: TimerClock.now)
+        if applied && command.action == .reset { practicing = false }
         if applied && command.action == .end { timerFinishing = true }
         publishState()
         if applied && command.action == .end {
@@ -523,9 +552,13 @@ import UniformTypeIdentifiers
 
     private func publishState() {
         let now = TimerClock.now
+        state.audioConnection = audioConnection
+        state.isPractice = practicing
         state.timer = presentationTimer.snapshot(at: now)
         state.timer?.isFinishing = timerFinishing
+        if state.timer?.phase != .ready { preparationNotes.cancel() }
         if practicePresentationID != state.timer?.sessionID {
+            preparationNotes.clear()
             practicePresentationID = state.timer?.sessionID
             practiceSlideFacts = []
             phoneEvidence = PhoneEvidenceReceiver()
@@ -535,6 +568,10 @@ import UniformTypeIdentifiers
         state.practiceAnalysis = practiceAnalysis
         timerReceivedAt = now
         publishMCP()
+        if mcpDeckMatchesObservation, let slide = deck?.slides.first(where: { $0.id == state.slideID && $0.index == state.slideIndex }) {
+            state.notes = preparationNotes.text(slideID: slide.id, index: slide.index, deckVersion: mcpDeckVersion) ?? slide.notes
+            state.notesStatus = preparationNotes.accepted == nil ? "保存済みpptxから取得した原稿" : "採用した要点案（原文は保持）"
+        }
         state.practiceAnalysis = practiceAnalysis
         link.send(WireMessage(kind: "state", state: state))
     }
@@ -554,6 +591,10 @@ import UniformTypeIdentifiers
         panel.prompt = "このフォルダーで連携"
         panel.message = "MCPに指定した共有フォルダーを選びます。読み込んだ資料・ノート・発表状況と、この発表の音声認識結果・カメラ集計値をChatGPTから取得できます。"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        configureMCP(folder: url)
+    }
+
+    func configureMCP(folder url: URL) {
         stopMCP()
         mcpFolder = url; mcpScoped = url.startAccessingSecurityScopedResource()
         mcpWrittenDeckVersion = nil
@@ -561,7 +602,70 @@ import UniformTypeIdentifiers
         publishState()
     }
 
+    var notesReady: Bool { state.timer?.phase == .ready && !timerFinishing && !importing }
+    private var notesDeck: PreparationDeck? {
+        deck.map { value in PreparationDeck(schemaVersion: 1, deckVersion: mcpDeckVersion,
+            title: value.title, available: true, slides: value.slides.map {
+                PreparationDeck.Page(slideIndex: $0.index, slideID: $0.id, body: $0.body, notes: $0.notes)
+            }) }
+    }
+    private var notesContext: PreparationNotesContext? {
+        guard let timer = state.timer, let analysisSharingID else { return nil }
+        return PreparationNotesContext(deckVersion: mcpDeckVersion, connectionID: notesConnectionID,
+            timerSessionID: timer.sessionID, timerRevision: timer.revision, sharingID: analysisSharingID)
+    }
+    private func readPreparationNotes() throws -> PreparationNotes {
+        struct RequestState: Decodable, Equatable { let requestID: UUID; let status: String }
+        guard let folder = mcpFolder, let deck = notesDeck else { throw CocoaError(.fileReadUnknown) }
+        let request = try PreparationNotesFile.read(RequestState.self,
+            from: folder.appendingPathComponent("analysis-request.json"), limit: 8 * 1024 * 1024)
+        let value = try PreparationNotesFile.read(PreparationNotes.self,
+            from: folder.appendingPathComponent("preparation-notes.json"), limit: PreparationNotes.maxBytes)
+        let latest = try PreparationNotesFile.read(RequestState.self,
+            from: folder.appendingPathComponent("analysis-request.json"), limit: 8 * 1024 * 1024)
+        guard request == latest, request.status == "completed", value.matches(deck, requestID: request.requestID) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        return value
+    }
+    func reviewPreparationNotes() {
+        preparationNotes.cancel()
+        guard notesReady, let context = notesContext, let deck = notesDeck else {
+            preparationNotesStatus = "準備中に資料と共有フォルダーを選んでください"; return
+        }
+        do {
+            let value = try readPreparationNotes()
+            guard preparationNotes.review(value, deck: deck, currentID: value.requestID, context: context, ready: notesReady) else { return }
+            preparationNotesStatus = "元の原稿と要点案を確認してください。元PPTXは変更しません"
+        } catch { preparationNotesStatus = "同じ資料の分析済み要点案がありません。準備アプリでMacの資料を読み込み、分析してください" }
+    }
+    func applyPreparationNotes() {
+        guard let context = notesContext, let deck = notesDeck, let value = try? readPreparationNotes(),
+              preparationNotes.apply(current: value, deck: deck, currentID: value.requestID, context: context, ready: notesReady) else {
+            preparationNotes.cancel()
+            preparationNotesStatus = "準備状態が変わりました。もう一度確認してください"; return
+        }
+        preparationNotesStatus = "要点案を採用しました。iPhone接続後も同じページに表示します"
+        refreshPreparedNotes()
+    }
+    func cancelPreparationNotes() { preparationNotes.cancel() }
+    func restorePreparationNotes() {
+        guard notesReady else { return }
+        preparationNotes.clear()
+        preparationNotesStatus = "元の原稿に戻しました"
+        refreshPreparedNotes()
+    }
+    private func refreshPreparedNotes() {
+        // Keep the source-identity gate; do not publish notes without an observed PPTX match.
+        guard mcpDeckMatchesObservation, let slide = deck?.slides.first(where: { $0.id == state.slideID && $0.index == state.slideIndex }) else { return }
+        state.notes = preparationNotes.text(slideID: slide.id, index: slide.index, deckVersion: mcpDeckVersion) ?? slide.notes
+        state.notesStatus = preparationNotes.accepted == nil ? "保存済みpptxから取得した原稿" : "採用した要点案（原文は保持）"
+        publishState()
+    }
+
     func stopMCP() {
+        preparationNotes.cancel()
+        if notesReady { preparationNotes.clear() }
         invalidatePracticeAnalysis()
         analysisSharingID = nil
         phoneEvidence = PhoneEvidenceReceiver()
@@ -605,6 +709,14 @@ import UniformTypeIdentifiers
             try writeMCP(["schemaVersion":1,"sessionID":sessionID.uuidString,"deckVersion":mcpDeckVersion.uuidString,
                 "updatedAt":Date().timeIntervalSince1970,"live":live,"practice":practice], name:"live-snapshot.json", folder:folder)
             try pollPracticeAnalysis(folder: folder)
+            if notesReady, preparationNotes.accepted != nil || preparationNotes.pending != nil {
+                if let current = try? readPreparationNotes(),
+                   preparationNotes.accepted.map({ $0 == current }) ?? true,
+                   preparationNotes.pending.map({ $0 == current }) ?? true {} else {
+                    preparationNotes.clear()
+                    preparationNotesStatus = "分析が更新・取消されました。もう一度確認してください"
+                }
+            }
             mcpStatus = "ChatGPTに資料・発表状況・取得済み分析を共有中"
         } catch { mcpStatus = "ChatGPT共有の保存に失敗：\(error.localizedDescription)" }
     }
@@ -659,7 +771,7 @@ import UniformTypeIdentifiers
         return facts
     }
 
-    func requestPracticeAnalysis() {
+    func requestPracticeAnalysis(copyPrompt: Bool = true) {
         guard let folder = mcpFolder, let timer = state.timer, timer.phase == .ended, !timerFinishing else {
             practiceAnalysisStatus = "共有を開始し、発表終了後に分析を依頼してください"
             return
@@ -679,8 +791,10 @@ import UniformTypeIdentifiers
             practiceRequest = request
             practiceAnalysisStatus = "ChatGPTからの分析結果を待っています"
             try pollPracticeAnalysis(folder: folder)
+            if copyPrompt {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString("カンペきのMCPで get_practice_report(source: analysis) を読み、この発表で次に直す一か所を優先して分析してください。改善は最大3件。各改善に根拠IDとcoaching（targetEvidenceID・具体的なchange・次の練習で確認するrehearsal）を付けます。取得済みの根拠とcoachingContextを確認し、未計測や別時計を混ぜず、材料が足りなければ限界を返してください。submit_practice_analysisで返し、get_analysis_status(kind: practice)で反映を確認してください。依頼ID: \(request.requestID.uuidString)", forType: .string)
+            }
         } catch { invalidatePracticeAnalysis(); practiceAnalysisStatus = "分析依頼を保存できませんでした: \(error.localizedDescription)" }
         publishState()
     }

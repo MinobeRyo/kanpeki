@@ -5,7 +5,7 @@ import subprocess
 
 root = Path(__file__).resolve().parents[1]
 s = (root / 'SlidePacer/ContentView.swift').read_text()
-models = s[s.index('@Generable(description: "1枚'):s.index('enum OllamaClient')]
+models = s[s.index('struct SlideWeight:'):s.index('enum OllamaClient')]
 models = re.sub(r'@(?:Guide|Generable)(?:\([^\n]*\))?\n', '', models)
 slide = s[s.index('struct SlideInput:'):s.index('// MARK: - JSON取り込み用モデル')]
 mcp_source = (root / 'SlidePacer/MCPPreparation.swift').read_text()
@@ -21,6 +21,13 @@ func expectThrows(_ block: () throws -> Any) {
 '''
 runner = '''
 let tests = SlidePacerTests()
+try tests.quotedQualificationsRemainExactBalancedSource()
+try tests.bodyQualificationPreservesMultilineQuoteWithoutTable()
+tests.ambiguousTrailingNumbersAndTimesAreNotMetadata()
+try tests.partialEnumerationCompletesOnlyItsSourceGroup()
+try tests.unselectedEnumerationDoesNotForceWholeSource()
+tests.incompleteEnumerationIsRejectedWithoutInventingItems()
+try tests.negativeEvidenceQualificationsSurviveWithoutUnrelatedSentences()
 try tests.usesBudgetWithVariedDurationsAndPreservesPageMeaning()
 try tests.shorterBudgetChangesContentAndKeepsImportanceForSkippedPages()
 tests.rejectsInvalidOrMissingSummaries()
@@ -59,7 +66,7 @@ try tests.keepsQuotedQuestionsAndNestedBracketsInOneSourcePoint()
 try tests.permitsCompleteEnumerationsAndRejectsExcessiveSelection()
 try tests.numericComparisonAllowsAdditionalConditionSource()
 try tests.nativeMCPRejectsStaleIncompleteAndUnknownSelections()
-print("38 regression tests passed")
+print("45 regression tests passed")
 '''
 build = root / '.build'
 build.mkdir(exist_ok=True)

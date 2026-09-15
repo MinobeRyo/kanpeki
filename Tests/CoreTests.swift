@@ -8,6 +8,16 @@ import Foundation
         print("PASS: \(description)")
     }
     static func main() throws {
+        var audioState = PresentationState()
+        audioState.audioConnection = PresentationAudioConnection(address: "http://192.168.1.10:8765", token: String(repeating: "a", count: 32))
+        let audioWire = try JSONEncoder().encode(WireMessage(kind: "state", state: audioState))
+        expect(WireCodec.decode(audioWire)?.state?.audioConnection == audioState.audioConnection, "paired audio endpoint survives state roundtrip")
+        for address in ["https://example.com:8765", "http://127.0.0.1:8765", "http://8.8.8.8:8765", "http://192.168.1.10:8765/path", "http://user@192.168.1.10:8765"] {
+            audioState.audioConnection = PresentationAudioConnection(address: address, token: String(repeating: "a", count: 32))
+            expect(WireCodec.decode(try! JSONEncoder().encode(WireMessage(kind: "state", state: audioState))) == nil, "reject invalid audio destination: " + address)
+        }
+        audioState.audioConnection = nil
+        expect(WireCodec.decode(try! JSONEncoder().encode(WireMessage(kind: "state", state: audioState)))?.state?.audioConnection == nil, "receiver stop removes paired endpoint")
         try testSlidePointer()
         try testSlideFrames()
         let folder = URL(fileURLWithPath: CommandLine.arguments[1])
@@ -40,6 +50,13 @@ import Foundation
         expect(WireCodec.frame(Data(repeating: 0, count: WireCodec.maxFrameBytes + 1), sequence: 1, identity: identity) == nil, "bound transmitted image size")
         expect(WireCodec.decode(Data("{\"version\":99,\"kind\":\"control\"}".utf8)) == nil, "reject incompatible protocol")
         let control = WireMessage(kind: "control", action: .next)
+        var preparedState = PresentationState()
+        preparedState.slideID = 259; preparedState.slideIndex = 1
+        preparedState.notes = String(repeating: "\"\\\n", count: 5000)
+        preparedState.notesStatus = "採用した要点案（原文は保持）"
+        let preparedData = try JSONEncoder().encode(WireMessage(kind: "state", state: preparedState))
+        expect(preparedData.count < WireCodec.maxMessageBytes, "current prepared page stays within wire bound even with escaping")
+        expect(WireCodec.decode(preparedData)?.state == preparedState, "phone wire decoder preserves prepared notes, source label and source slide identity")
         let received = WireCodec.decode(try JSONEncoder().encode(control))
         expect(received?.action == .next && received?.requestID == control.requestID, "control request preserves identity")
         let sharedID = UUID(), presentationID = UUID(), recordingID = UUID()

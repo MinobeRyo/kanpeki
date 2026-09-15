@@ -1,5 +1,9 @@
 # カンペき：チーム開発
 
+## 統合版（Issue #92）
+
+準備・練習・音声・AI振り返りをつなぐ統合版を実装しています。ホーム「練習する」、音声接続情報の自動共有、メイン画面の録音・分析入口、資料AI整理の本体内表示を追加。[操作・統合元・検証範囲](docs/INTEGRATED_PRACTICE.md)。以下のスナップショットは履歴であり、最新統合状態はIssue #92とそのPRで確認してください。
+
 対象リポジトリ: MinobeRyo/kanpeki
 
 ユーザーの許可に基づき、既存のMac/iPhoneアプリ本体とテスト、設計、チーム運用を集約しました。移植由来と実装差分は[移植状況](docs/MIGRATION.md)、起動手順は[APP_SETUP](docs/APP_SETUP.md)を参照してください。配布バイナリや秘密鍵は含みません。
@@ -36,6 +40,8 @@
 
 ## MCPによる発表分析（add.minobeで統合中）
 
+発表前の内容準備は[原稿の確認・採用・元に戻す](docs/PREPARATION_NOTES.md)へ。iPhone接続前にもMacで準備でき、分析なしなら元のPPTXノートで発表できます。
+
 `apps/SlidePacer` の資料取り込み・時間配分を引き継ぎ、分析をChatGPTのMCP接続へ切り替えています。ローカルLLMの起動は不要になる構成です。統合・検証状況はIssue #33およびdocs/MCP_INTEGRATION.mdに記録します。
 
 音声取得・解析は [AudioCapture](experiments/AudioCapture/README.md) の共有部品を本体iPhoneから利用します。[統合範囲](docs/AUDIO_CAPTURE.md)と[Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12)を参照。メニュー→その他→確認・接続→「音声を試す」は独立試験入口。発表UUIDへの明示録音・終了停止・同発表の音声結果入口はPR #60で部分統合済み。時計・統一結果の統合と実機検証は残件です。
@@ -45,5 +51,6 @@ Macの音声分析はホーム「分析・結果」→「音声分析を開く�
 
 発表終了後は、音声認識結果・カメラ集計値・資料・時間をまとめて既存ChatGPT MCPへ渡し、根拠付きの振り返りをMac/iPhoneで確認できます。使い方・取得条件・未検証範囲は [MCP連携](docs/MCP_INTEGRATION.md) を参照してください。文字起こしはMacで継続し、追加課金APIは使用しません。
 Macの統合開始・取消・時計を維持した共有復旧は[PR #67](https://github.com/MinobeRyo/kanpeki/pull/67)の差分。[操作と制限](docs/MAC_UI_IMPLEMENTATION.md)。逐次準備・資料プレビューは後続PR #81で、統合/配布前の開発版と現行配布版を区別してください。
+
 
 AI改善提案の初期実装（#82）は、対象の根拠・具体的な修正案・次の練習を返し、Mac/iPhoneで優先する1件を先に表示します。更新方法・MCP契約・検証範囲は[MCP連携](docs/MCP_INTEGRATION.md)、後続案との区別は[AI改善提案](specs/AI_COACHING.md)を参照してください。
