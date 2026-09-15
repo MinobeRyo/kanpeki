@@ -55,6 +55,7 @@ struct MacScreen: View {
     @AppStorage("macNotesSize") private var notesSize = 0
     @State private var showDetails = false
     @State private var showPractice = false
+    @State private var showPreparationNotes = false
     @State private var macOnly = false
     @State private var screenOnly = false
     @State private var endingSession: UUID?
@@ -188,6 +189,7 @@ struct MacScreen: View {
                 }.padding(20).frame(width: 800, height: 580)
             }
             .sheet(isPresented: $showPractice) { practiceSheet }
+            .sheet(isPresented: $showPreparationNotes) { PreparationNotesView(model: model) }
             .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
@@ -384,6 +386,7 @@ struct MacScreen: View {
             Divider()
             Button("音声分析") { navigation.open(.audio) }
             Button("ChatGPTで振り返る") { showPractice = true }
+            Button("要点原稿を確認・採用") { showPreparationNotes = true }
             Button("カメラの設定・結果") { showCamera = true }
             Menu("原稿の文字サイズ") {
                 Button("標準") { notesSize = 0 }; Button("大") { notesSize = 1 }; Button("特大") { notesSize = 2 }

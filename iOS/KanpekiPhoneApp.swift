@@ -218,6 +218,7 @@ struct PhoneScreen: View {
                             Text(model.state.title).font(.headline).lineLimit(2)
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("原稿").font(.caption.bold())
+                                Text(model.state.notesStatus).font(.caption).foregroundStyle(.secondary)
                                 Text(model.state.notes.isEmpty ? "原稿を待っています" : model.state.notes)
                                     .font(.title3).lineSpacing(7)
                                     .frame(maxWidth: .infinity, alignment: .leading)

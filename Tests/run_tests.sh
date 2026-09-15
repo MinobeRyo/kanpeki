@@ -52,3 +52,6 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/iOS/AudioAnalysisEvidence.swift" \
   "$project_dir/Tests/PracticeAnalysisTests.swift" -o "$test_dir/practice-analysis-tests"
 "$test_dir/practice-analysis-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/PreparationNotes.swift" "$project_dir/Tests/PreparationNotesTests.swift" -o "$test_dir/preparation-notes-tests"
+"$test_dir/preparation-notes-tests"

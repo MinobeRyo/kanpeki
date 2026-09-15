@@ -40,6 +40,13 @@ import Foundation
         expect(WireCodec.frame(Data(repeating: 0, count: WireCodec.maxFrameBytes + 1), sequence: 1, identity: identity) == nil, "bound transmitted image size")
         expect(WireCodec.decode(Data("{\"version\":99,\"kind\":\"control\"}".utf8)) == nil, "reject incompatible protocol")
         let control = WireMessage(kind: "control", action: .next)
+        var preparedState = PresentationState()
+        preparedState.slideID = 259; preparedState.slideIndex = 1
+        preparedState.notes = String(repeating: "\"\\\n", count: 5000)
+        preparedState.notesStatus = "採用した要点案（原文は保持）"
+        let preparedData = try JSONEncoder().encode(WireMessage(kind: "state", state: preparedState))
+        expect(preparedData.count < WireCodec.maxMessageBytes, "current prepared page stays within wire bound even with escaping")
+        expect(WireCodec.decode(preparedData)?.state == preparedState, "phone wire decoder preserves prepared notes, source label and source slide identity")
         let received = WireCodec.decode(try JSONEncoder().encode(control))
         expect(received?.action == .next && received?.requestID == control.requestID, "control request preserves identity")
         let sharedID = UUID(), presentationID = UUID(), recordingID = UUID()

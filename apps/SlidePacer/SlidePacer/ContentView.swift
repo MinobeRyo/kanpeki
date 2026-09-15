@@ -1248,6 +1248,14 @@ struct ContentView: View {
                 backendSection.disabled(isGenerating)
                 presetSection.disabled(isGenerating)
                 importSection.disabled(isGenerating)
+                Section("本体の原稿へ届ける") {
+                    Button("Mac本体の資料を読み込む") {
+                        do { slides = try mcp.loadMainDeck(); invalidateAnalysis() }
+                        catch { errorMessage = error.localizedDescription }
+                    }.disabled(isGenerating || mcp.folder == nil)
+                    Text("同じ共有フォルダーの資料を使います。分析後、本体で要点案を確認・採用できます。完成原稿や翻訳ではありません。")
+                        .font(.caption)
+                }
                 basicInfoSection.disabled(isGenerating)
                 slidesSection.disabled(isGenerating)
                 promptTuningSection
@@ -1667,6 +1675,7 @@ struct ContentView: View {
     }
 
     private func invalidateAnalysis() {
+        mcp.invalidateNotes()
         if plan != nil || errorMessage != nil { analysisNotice = "入力や設定が変わりました。もう一度分析してください。" }
         plan = nil
         errorMessage = nil
@@ -1731,6 +1740,7 @@ struct ContentView: View {
                     plan = try EditorialPlanner.assemble(lastBriefs, slideCount: slides.count, budget: totalSeconds)
                     lastReportData = buildReportJSON(plan: plan)
                     if let data = lastReportData { try mcp.saveReport(data) }
+                    try mcp.saveNotes(lastBriefs)
                     mcp.finish("completed", message: "原文照合と時間配分が完了しました")
                     break
                 }
