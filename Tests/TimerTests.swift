@@ -60,6 +60,23 @@ import Foundation
         var invalid = sample; invalid.elapsedSeconds = -1
         expect(WireCodec.decode(try JSONEncoder().encode(WireMessage(kind: "state", state: PresentationState(timer: invalid)))) == nil, "invalid timer sample rejected")
         expect(PresentationTimerText.time(0) == "00:00" && PresentationTimerText.time(60.1) == "01:01", "remaining display rounds up")
+        var controls = PresentationState(slideIndex: 2, totalSlides: 3, canControl: true, isSharing: true, timer: sample)
+        expect(!controls.canMoveSlide(.next), "UI disables slide buttons in preparation")
+        controls.timer?.phase = .running
+        expect(controls.canMoveSlide(.next) && controls.canMoveSlide(.previous), "UI enables both directions during presentation")
+        controls.timer?.phase = .paused
+        expect(controls.canMoveSlide(.next), "UI keeps manual movement enabled while paused")
+        controls.timer?.phase = .ended
+        expect(!controls.canMoveSlide(.next), "UI disables movement after end")
+        controls.timer?.phase = .running
+        controls.slideIndex = 1
+        expect(!controls.canMoveSlide(.previous), "UI cannot move before first slide")
+        controls.slideIndex = 3
+        expect(!controls.canMoveSlide(.next), "UI cannot move after last slide")
+        controls.slideIndex = 4
+        expect(!controls.canMoveSlide(.previous), "invalid slide index is not actionable")
+        controls.slideIndex = 2; controls.isSharing = false
+        expect(!controls.canMoveSlide(.next), "stopped sharing disables UI movement")
         print("\(checks) timer checks passed")
     }
 }
