@@ -1,15 +1,21 @@
 import SwiftUI
 import KanpekiCamera
+import KanpekiAudioHost
 
 @main struct KanpekiMacApp: App {
     @StateObject private var model = MacModel()
+    @StateObject private var audio = AudioHostModel()
     var body: some Scene {
         WindowGroup("カンペき · Mac") { MacScreen(model: model, capture: model.capture, link: model.link) }
             .defaultSize(width: 1440, height: 900)
+        Window("カンペき · 音声分析", id: "audio-analysis") {
+            AudioHostPanel(model: audio).frame(minWidth: 680, minHeight: 620)
+        }.defaultSize(width: 760, height: 780)
     }
 }
 
 struct MacScreen: View {
+    @Environment(\.openWindow) private var openWindow
     @ObservedObject var model: MacModel
     @ObservedObject var capture: WindowCapture
     @ObservedObject var link: PeerLink
@@ -33,6 +39,7 @@ struct MacScreen: View {
                 Spacer()
                 Label(link.connectedName == nil ? "iPhone未接続" : "iPhone接続済み", systemImage: "iphone")
                     .font(.callout)
+                Button("音声分析", systemImage: "waveform") { openWindow(id: "audio-analysis") }
                 Button("画面構成を試す") { showScreenReview = true }
                 Button { showDetails = true } label: { Image(systemName: "ellipsis").frame(width: 36, height: 36) }
                     .accessibilityLabel("接続の詳細と記録")

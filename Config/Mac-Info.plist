@@ -38,7 +38,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>MacとiPhoneを接続してスライド画面と原稿を共有し、ページ操作を送信します。</string>
+	<string>iPhoneから発表音声を受け取って分析し、スライド画面と原稿・操作を共有します。</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
