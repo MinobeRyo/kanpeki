@@ -4,6 +4,10 @@ import argparse
 import json
 import subprocess
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from documentation_check import validate_documentation
 
 REPO = 'MinobeRyo/kanpeki'
 EXPECTED = {'check (core)', 'check (mac)', 'check (phone)'}
@@ -39,7 +43,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('pr', type=int)
     args = parser.parse_args()
-    fields = 'number,url,state,isDraft,isCrossRepository,baseRefName,headRefOid,mergeable,mergeStateStatus,reviewDecision'
+    fields = 'number,url,state,isDraft,isCrossRepository,baseRefName,headRefOid,mergeable,mergeStateStatus,reviewDecision,body,changedFiles'
     pr = gh('pr', 'view', str(args.pr), '--repo', REPO, '--json', fields)
     branch = gh('api', f'repos/{REPO}/branches/main')
     active_rules = gh('api', f'repos/{REPO}/rules/branches/main')
@@ -59,11 +63,18 @@ def main():
     else:
         raise ValueError('Cannot establish check state.')
     errors = blockers(pr, protection, compare, checks)
-    fresh = gh('pr','view',str(args.pr),'--repo',REPO,'--json','headRefOid,mergeStateStatus')
+    pages = gh('api', '--paginate', '--slurp', f'repos/{REPO}/pulls/{args.pr}/files?per_page=100')
+    files = [file for page in pages for file in page]
+    if len(files) != pr['changedFiles']:
+        errors.append('Cannot inspect all changed files for documentation impact (API limit or PR changed).')
+    errors.extend('Documentation: ' + error for error in validate_documentation(pr.get('body'), files))
+    fresh = gh('pr','view',str(args.pr),'--repo',REPO,'--json','headRefOid,mergeStateStatus,body')
     if fresh['headRefOid'] != pr['headRefOid'] or gh('api',f'repos/{REPO}/commits/main')['sha'] != base:
         errors.append('PR/main changed during inspection. Run again.')
     if fresh['mergeStateStatus'] != 'CLEAN':
         errors.append('GitHub merge state changed or remains blocked.')
+    if fresh.get('body') != pr.get('body'):
+        errors.append('PR documentation declaration changed during inspection. Run again.')
     print(json.dumps({'pr':pr['url'],'main_sha':base,'head_sha':pr['headRefOid'],'review_count':(protection.get('required_pull_request_reviews') or {}).get('required_approving_review_count',0),'required_checks':checks,'blockers':errors},ensure_ascii=False,indent=2))
     if errors:
         return 1
