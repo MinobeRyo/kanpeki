@@ -3,7 +3,7 @@
 iPhoneで発表を録音し、Mac内で話し方を分析する独立モジュール。
 カンペき本体との統合に向けた、SwiftUIアプリとPythonのローカル分析サーバーです。
 
-本体の Issue #12 に紐づく単体検証モジュールです。`KanpekiPhone` / `KanpekiMac` への組み込みは未実施。作業状態・引き継ぎは [Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12) を参照してください。
+本体の Issue #12 に紐づく音声検証モジュールです。本体 `KanpekiPhone` の未接続ホーム「音声を試す」からも同じ録音・分析画面を使えます。発表セッションとMacアプリへの統合は未実施。作業状態・引き継ぎは [Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12) を参照してください。
 
 ## 初版の範囲
 
@@ -50,6 +50,8 @@ Macのローカル名は `scutil --get LocalHostName` で確認できます。
 iPhoneには `http://その名前.local:8765` と接続コードを入力します。`0.0.0.0` は入力しません。
 
 ## 2. iPhoneアプリを起動する
+
+本体のTestFlightで試す場合は [本体での試験手順](../../docs/AUDIO_CAPTURE.md) を参照。以下は独立アプリをXcodeで起動する手順。
 
 1. `ios/KanpekiAudio.xcodeproj` をXcodeで開く。
 2. Signing & Capabilitiesで自分のTeamを選び、必要ならBundle IDを変更。
@@ -111,7 +113,7 @@ xcodebuild -project ios/KanpekiAudio.xcodeproj -scheme KanpekiAudio \
 ```
 
 プロジェクト設定を変更する場合は `ios/project.yml` を編集し、`cd ios && xcodegen generate` で再生成。
-本体の `.github/workflows/audio.yml` が、このディレクトリのバックエンドテストを実行します。iOSのビルド・署名・配布は接続していません。
+本体の `.github/workflows/audio.yml` が、このディレクトリのバックエンドテストを実行します。本体ターゲットの音声画面はNative checksと既存TestFlight CDの対象です。単体 `KanpekiAudio` の署名・配布は接続していません。
 
 - [APIと統合ポイント](docs/INTEGRATION.md)
 - [検証記録](docs/VALIDATION.md)

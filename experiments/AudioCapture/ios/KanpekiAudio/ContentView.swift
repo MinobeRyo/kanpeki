@@ -8,8 +8,10 @@ private enum Brand {
     static let coral = Color(red: 1, green: 87/255, blue: 87/255)
 }
 
-struct ContentView: View {
-    @StateObject private var model = RecorderModel()
+struct AudioCaptureView: View {
+    @ObservedObject var model: RecorderModel
+    var logoName = "Logo"
+    var onClose: (() -> Void)? = nil
     @AppStorage("macAddress") private var address = "http://Mac名.local:8765"
     @State private var token = ""
     @State private var confirmDiscard = false
@@ -20,10 +22,10 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     HStack(spacing: 16) {
-                        Image("Logo").resizable().scaledToFit().frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 18))
+                        Image(logoName).resizable().scaledToFit().frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 18))
                         VStack(alignment: .leading, spacing: 4) {
                             Text("声から、次の一歩。").font(.title2.bold())
-                            Text("発表の話し方を振り返ろう").font(.subheadline)
+                            Text(onClose == nil ? "発表の話し方を振り返ろう" : "音声の試験機能・スライド同期は未対応").font(.subheadline)
                         }
                     }
                     if model.phase == .ready || model.phase == .recorded {
@@ -43,6 +45,13 @@ struct ContentView: View {
             .tint(Brand.slate)
             .navigationTitle("カンペき 音声")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if let onClose {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("戻る", action: onClose).disabled(model.phase == .requesting)
+                    }
+                }
+            }
             .alert("このiPhoneの録音を破棄しますか？", isPresented: $confirmDiscard) {
                 Button("破棄して準備に戻る", role: .destructive) { model.discard() }
                 Button("戻る", role: .cancel) { }
@@ -50,6 +59,10 @@ struct ContentView: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background { model.stopForInterruption() }
             }
+        }
+        .onDisappear {
+            model.stopForInterruption()
+            if model.isBusy { model.cancelWaiting() }
         }
         .preferredColorScheme(.light)
     }
@@ -64,7 +77,7 @@ struct ContentView: View {
                 HStack { if model.checking { ProgressView() }; Text("接続を確認") }
             }.disabled(model.checking)
             if let message = model.connectionMessage { Text(message).font(.footnote) }
-            Text("Macと同じWi-Fiで接続してください。接続前でも録音できます。")
+            Text("Macで音声分析サーバーを起動し、同じWi-Fiで接続してください。接続前でも録音できます。")
                 .font(.caption)
         }.card()
     }

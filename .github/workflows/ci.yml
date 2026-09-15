@@ -4,6 +4,7 @@ on:
     paths:
       - "Mac/**"
       - "iOS/**"
+      - "experiments/AudioCapture/ios/**"
       - "Shared/**"
       - "Config/**"
       - "Kanpeki.xcodeproj/**"

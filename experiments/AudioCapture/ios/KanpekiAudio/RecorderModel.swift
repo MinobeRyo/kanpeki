@@ -13,6 +13,7 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
     @Published var report: AudioReport?
     @Published var connectionMessage: String?
     @Published var checking = false
+    private var idleTimerWasDisabled: Bool?
     private var recorder: AVAudioRecorder?
     private var timer: Timer?
     private var fileURL: URL?
@@ -81,6 +82,7 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
                 throw AudioAPIError.message("録音を開始できませんでした。マイクを確認してください。")
             }
             self.recorder = recorder; fileURL = url; elapsed = 0; phase = .recording
+            idleTimerWasDisabled = UIApplication.shared.isIdleTimerDisabled
             UIApplication.shared.isIdleTimerDisabled = true
             timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
                 Task { @MainActor in self?.updateMeter() }
@@ -109,7 +111,10 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
     private func finishCapture() {
         timer?.invalidate(); timer = nil; level = 0
-        UIApplication.shared.isIdleTimerDisabled = false
+        if let previous = idleTimerWasDisabled {
+            UIApplication.shared.isIdleTimerDisabled = previous
+            idleTimerWasDisabled = nil
+        }
         try? AVAudioSession.sharedInstance().setActive(false)
     }
 

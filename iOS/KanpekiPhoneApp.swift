@@ -96,6 +96,8 @@ struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
     @State private var showDetails = false
+    @State private var showAudioTrial = false
+    @StateObject private var audioRecorder = RecorderModel()
     @State private var showScreenReview = false
     @State private var reviewAfterDetails = false
     @StateObject private var camera = CameraController()
@@ -142,6 +144,9 @@ struct PhoneScreen: View {
                                 }.buttonStyle(.bordered)
                             }
                             Button("画面構成を試す") { showScreenReview = true }.buttonStyle(.bordered)
+                            Button("音声を試す") { showAudioTrial = true }
+                                .buttonStyle(.bordered)
+                                .disabled(camera.phase == .running || camera.phase == .preparing)
                             Text(link.status).font(.caption)
                             HStack {
                                 Image("BrandMascot").resizable().scaledToFit().frame(width: 72, height: 72)
@@ -222,6 +227,9 @@ struct PhoneScreen: View {
                 }
         }.tint(ink).preferredColorScheme(.light)
         .fullScreenCover(isPresented: $showScreenReview) { ScreenReview() }
+        .fullScreenCover(isPresented: $showAudioTrial) {
+            AudioCaptureView(model: audioRecorder, logoName: "BrandMascot", onClose: { showAudioTrial = false })
+        }
         .onChange(of: cameraScenePhase) { _, phase in
             if phase != .active { model.sendPointer(nil) }
             if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {

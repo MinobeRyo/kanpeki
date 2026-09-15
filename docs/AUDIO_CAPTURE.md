@@ -1,21 +1,29 @@
 # 音声取得・解析モジュール
 
-## 今回の移植範囲
+## 移植元と構成
 
 ユーザーの指示により、別リポジトリに作成した音声初版を `experiments/AudioCapture/` に移した。
 移植元: `mao-sonobe/kanpeki-audio`、コミット `12f4a30d02d951e491232fbde53d2b5487f99000`。
 ソース・実テスト・Xcodeプロジェクト・手順を取り込み、Git履歴・モデル・録音・秘密情報は含めていない。
 アイコン/ロゴは本体の `assets/brand/app-icon.png` に合わせた。
 
-本体の `KanpekiPhone` / `KanpekiMac` に組み込まれた機能ではなく、音声担当が単体検証できる入口。
-PythonのMacサーバーとSwiftUIのiPhone検証アプリを含む。主製品のMacネイティブアプリの代わりにしない。
-本体の `Shared/Models.swift`、既存iPhone UI、結果画面、署名・配布設定は変更していない。
+## 本体iPhoneで音声を試す
 
-## 試す
+`KanpekiPhone` の未接続ホームに「音声を試す」を追加した。同じ録音・通信・結果画面を単体アプリと本体で共有する。`KanpekiAudioApp.swift` と単体アプリの署名設定は本体ターゲットへ含めない。本体のBundle ID・署名・配布先は既存設定を維持する。
 
-本体リポジトリから `cd experiments/AudioCapture` し、[README](../experiments/AudioCapture/README.md) の順に起動する。
-Xcodeで開くのは `experiments/AudioCapture/ios/KanpekiAudio.xcodeproj`。
-単体検証用Bundle IDは `dev.kanpeki.audio`。本体のTestFlightとは別アプリで、配布設定は未接続。
+これは音声の試験入口。発表タイマーやスライドのセッションとはまだ連動しない。共有接続を切ったホームから開き、カメラを停止して試す。録音画面を戻る/バックグラウンドへ移すと録音は停止し、次に音声画面を開いて取得済み音声を分析できる。分析中に戻ると待機をキャンセルする。画面を開くだけではマイクを要求しない。
+
+1. この変更を含む本体iPhoneビルドをインストールして、ホームの「音声を試す」を開く。TestFlight配布状態は [Issue #28](https://github.com/MinobeRyo/kanpeki/issues/28) で確認する。PR作成・マージ・ローカルビルド成功だけではTestFlight更新済みとはしない。
+2. Macでは本体リポジトリの `experiments/AudioCapture/` から [README](../experiments/AudioCapture/README.md) の手順で音声分析サーバーを起動する。iPhone接続には `--host 0.0.0.0` を明示する。Macネイティブアプリにはサーバー・Whisperモデルの自動起動をまだ組み込んでいない。
+3. iPhoneとMacを同じ信頼できるWi-Fiへ接続し、`http://Macのローカル名.local:8765` とMacに表示された接続コードを入力する。これは音声サーバー用のコードで、本体スライド接続とは別。初版はLAN内のHTTP通信。
+4. 「接続を確認」→「録音をはじめる」→マイク許可→30〜60秒話す→「録音を終了」→「Macで分析する・再取得」。モデル未設定なら文字起こし・話速・フィラーは未計測になる。
+5. 話速、フィラー候補、低音量区間、文字起こしを確認する。録音を破棄する前に、必要なら元の声と候補を照合する。
+
+未検証：実iPhoneの権限・録音品質・LAN通信、会場音声精度、長時間録音。実機での確認は #39 に記録する。
+
+## 単体アプリで試す
+
+Xcodeで `experiments/AudioCapture/ios/KanpekiAudio.xcodeproj` を開く。Bundle IDは `dev.kanpeki.audio`。この単体アプリ自体のTestFlight配布設定は未接続。本体TestFlightでは上記のホーム入口を使う。
 
 音声は16kHz mono PCM16 WAVを録音終了後に一括送信する。Mac内のwhisper.cppで文字起こしし、話速・フィラー候補・低音量区間を返す。モデル未設定/失敗は未計測として扱う。詳細は [API契約](../experiments/AudioCapture/docs/INTEGRATION.md)。
 
@@ -41,7 +49,7 @@ Xcodeで開くのは `experiments/AudioCapture/ios/KanpekiAudio.xcodeproj`。
 
 これらの担当や完了状態は固定表に複製せず、最新Issueを正本にする。
 
-## 移植先の検証
+## 初回移植時の検証（試験入口の追加前）
 
 2026-09-15、移植先の専用worktreeで以下を確認した。
 
@@ -61,4 +69,10 @@ xcodebuild -project ios/KanpekiAudio.xcodeproj -scheme KanpekiAudio \
 ```
 
 本体の音声CIは `.github/workflows/audio.yml`。移植前の結果は [初版の検証記録](../experiments/AudioCapture/docs/VALIDATION.md) で区別する。
-実iPhoneの録音・LAN接続・会場音声の精度は未検証。VAD、リアルタイム分析/通知、本体セッションの接続は未実装。
+実iPhoneの録音・LAN接続・会場音声の精度は未検証。VAD、リアルタイム分析/通知、本体の発表セッションとの接続は未実装。
+
+## 本体の試験入口の検証（2026-09-15）
+
+- 最新mainを音声ブランチへ通常マージし、本体core検証、Mac/iPhone Simulatorの署名なしビルド成功。
+- iPhone 17 Pro / iOS 26.5 Simulatorでホーム「音声を試す」→録音準備画面→戻る→再度開くを確認。ブランド画像と接続入力、録音ボタンを表示。画面を開くだけではマイク権限を要求しない。
+- 今回のUI確認ではマイクを起動していない。実音声の実機録音、画面を閉じた録音の再取得、TestFlight実配布は別途確認する。

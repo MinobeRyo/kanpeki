@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>発表の声を録音し、指定したMacで話し方を振り返るために使います。</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>顔の向きとうなずき候補を端末内で解析します。映像は保存しません。</string>
 	<key>NSMotionUsageDescription</key>
@@ -34,7 +41,7 @@
 		<string>_kanpeki-v1._udp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>MacとiPhoneを接続してスライド画面と原稿を共有し、ページ操作を送信します。</string>
+	<string>MacとiPhoneでスライドと原稿を共有し、ページ操作や録音した発表音声を送信します。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
