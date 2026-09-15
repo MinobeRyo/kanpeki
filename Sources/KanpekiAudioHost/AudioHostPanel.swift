@@ -4,15 +4,17 @@ import Charts
 
 public struct AudioHostPanel: View {
     @ObservedObject var model: AudioHostModel
+    private var onBack: (() -> Void)?
     @State private var confirmStop = false
     @State private var showNotices = false
     private let ink = Color(red:92/255,green:102/255,blue:115/255)
     private let mint = Color(red:217/255,green:235/255,blue:213/255)
     private let paper = Color(red:249/255,green:255/255,blue:230/255)
-    public init(model: AudioHostModel) { self.model = model }
+    public init(model: AudioHostModel, onBack: (() -> Void)? = nil) { self.model = model; self.onBack = onBack }
     public var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:22) {
+                if let onBack { Button("戻る", systemImage: "chevron.left", action: onBack) }
                 Label("音声分析",systemImage:"waveform").font(.title.bold())
                 Text("iPhoneで録音した声を、このMacで振り返ります。")
                 if model.preparing {
@@ -24,7 +26,7 @@ public struct AudioHostPanel: View {
                         Text("分析モデルを準備しますか？").font(.title2.bold())
                         Text("初回約142MB。音声はMac内で分析します。")
                         Button("モデルを取得") { model.downloadModel() }.buttonStyle(.borderedProminent)
-                        Button("取得済みのモデルを選ぶ") { model.chooseModel() }
+
                     }.padding(24).frame(maxWidth:.infinity,alignment:.leading).background(paper,in:RoundedRectangle(cornerRadius:20))
                 } else if !model.receiving {
                     VStack(alignment:.leading,spacing:16) {
@@ -63,7 +65,10 @@ public struct AudioHostPanel: View {
                 if let error = model.error { Label(error,systemImage:"exclamationmark.triangle").foregroundStyle(.red) }
                 if let report = model.report { result(report) }
                 if !model.receiving {
-                    Button("使用ライブラリ") { showNotices = true }
+                    Menu("その他の操作") {
+                        if !model.modelReady && !model.preparing { Button("取得済みのモデルを選ぶ") { model.chooseModel() } }
+                        Button("使用ライブラリ") { showNotices = true }
+                    }
                 }
             }.padding(28).frame(maxWidth:.infinity,alignment:.leading)
         }.background(mint).foregroundStyle(ink).tint(ink)
@@ -111,7 +116,7 @@ public struct AudioHostPanel: View {
                     }
                 }
             }
-            DisclosureGroup("結果の読み方") { ForEach(report.warnings,id:\.self) { Text($0).font(.caption).frame(maxWidth:.infinity,alignment:.leading).padding(.vertical,4) } }
+            ForEach(report.warnings,id: \.self) { Text($0).font(.caption).frame(maxWidth: .infinity, alignment: .leading) }
         }.padding(24).frame(maxWidth:.infinity,alignment:.leading).background(paper,in:RoundedRectangle(cornerRadius:20))
     }
 }

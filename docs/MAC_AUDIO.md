@@ -1,6 +1,6 @@
 # Macアプリの音声分析
 
-Issue #63。Macアプリ上部の「音声分析」から専用ウィンドウを開きます。
+Issue #63。Macのホーム「分析・結果」→「音声分析を開く」から表示します。資料選択・スライド接続は不要。「戻る」で直前の画面へ戻れ、受信/結果は保持します。メニューバー「準備」→「音声分析」からも開けます。
 
 ## 使い方
 
@@ -17,7 +17,7 @@ Wi-Fiを変えたら受信を停止・再開し、新しいURLを使ってくだ
 - `Sources/KanpekiAudioHost/`：SwiftのHTTP受信、PCM WAV検証、指標集計、Whisperの直接呼び出し、モデル準備とSwiftUI画面。
 - 公式whisper.cpp **v1.9.2 XCFramework**をSwift Packageのbinary targetで固定。配布ZIPのSHA256 `af74fed13ea7f2d5ca2a39d9f58ec177713fafd7cab63aef4e27b79f3ceca80b` を照合します。Mac向けarm64/x86_64を含みます。
 - baseモデルのSHA256は `60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe`。モデルはアプリやGitに同梱せず、初回の明示操作で取得します。以後の分析にクラウド推論APIは使いません。
-- TestFlightパッケージ作成では、同じ配布証明書で同梱framework→アプリの順に署名します。Bundle ID・配布先・テスター設定は維持します。
+- TestFlightパッケージ作成では、同じ配布証明書で同梱framework→アプリの順に署名します。Bundle ID・配布先・テスター設定は維持します。ライブラリ検索パスはXcodeの配列形式で保持し、iPhoneの署名準備がMacの設定を書き換えないことをPRの `Tests/test_signing.rb` でも検証します。
 - 旧 `experiments/AudioCapture/backend` は比較・開発用として残ります。本体MacはPythonプロセスを起動しません。
 
 公式配布元：[whisper.cpp v1.9.2](https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.2)、[baseモデル](https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-base.bin)。MITライセンス表示をアプリの「使用ライブラリ」に同梱しています。

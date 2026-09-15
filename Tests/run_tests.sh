@@ -25,6 +25,10 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
 "$test_dir/peer-tests"
 echo "Test artifacts: $test_dir"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/MacPresentationStart.swift" \
+  "$project_dir/Tests/MacPresentationStartTests.swift" -o "$test_dir/mac-start-tests"
+"$test_dir/mac-start-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/DirectPairing.swift" "$project_dir/Tests/PairingTicketTests.swift" -o "$test_dir/pairing-tests"
 "$test_dir/pairing-tests"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
@@ -39,6 +43,9 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
   "$project_dir/Tests/AudioReviewChecks.swift" -o "$test_dir/audio-review-tests"
 "$test_dir/audio-review-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Mac/DocumentPreview.swift" "$project_dir/Tests/MacSetupTests.swift" -o "$test_dir/mac-setup-tests"
+"$test_dir/mac-setup-tests"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/PracticeAnalysis.swift" \
   "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
