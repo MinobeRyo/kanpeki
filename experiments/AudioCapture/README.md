@@ -3,7 +3,7 @@
 iPhoneで発表を録音し、Mac内で話し方を分析する独立モジュール。
 カンペき本体との統合に向けた、SwiftUIアプリとPythonのローカル分析サーバーです。
 
-本体の Issue #12 に紐づく音声検証モジュールです。本体 `KanpekiPhone` の未接続ホーム「音声を試す」からも同じ録音・分析画面を使えます。発表セッションとMacアプリへの統合は未実施。作業状態・引き継ぎは [Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12) を参照してください。
+本体の Issue #12 に紐づく音声検証モジュールです。本体 `KanpekiPhone` のメニュー→その他→確認・接続→「音声を試す」からも同じ録音・分析画面を使えます。発表UUIDへの明示録音・終了停止は本体iPhoneへ部分統合済み（[範囲](../../docs/AUDIO_CAPTURE.md)）。Mac音声ホストは未マージPR #72、時計・スライド履歴は未接続。作業状態・引き継ぎは [Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12) を参照してください。
 
 ## 初版の範囲
 

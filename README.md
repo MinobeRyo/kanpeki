@@ -4,9 +4,9 @@
 
 ユーザーの許可に基づき、既存のMac/iPhoneアプリ本体とテスト、設計、チーム運用を集約しました。移植由来と実装差分は[移植状況](docs/MIGRATION.md)、起動手順は[APP_SETUP](docs/APP_SETUP.md)を参照してください。配布バイナリや秘密鍵は含みません。
 
-まずAGENTS.mdとdocs/PREPARATION.mdを読む。要件はspecs/PRODUCT.md、開発運用はdocs/TEAM.md、開始後の配布構成はdocs/DELIVERY.mdを参照する。
+まず[共通ルール](AGENTS.md)と[現在の実装・残件・配布](docs/STATUS.md)を読む。要件はspecs/PRODUCT.md、開発運用はdocs/TEAM.mdを参照する。docs/PREPARATION.mdは開始許可前の履歴。全文書の分類は[棚卸し](docs/DOCUMENTATION_INVENTORY.md)を参照する。
 
-設計画像の全機能が実装済みとは限りません。ネイティブCI・CDは設定フラグを確認して有効化します。Slack通知の現在状態は[SLACK](docs/SLACK.md)を参照してください。
+設計画像の全機能が実装済みとは限りません。ネイティブCIと両アプリの内部TestFlight CDには成功記録がありますが、最新mainの配布・全員のインストールとは別です。[配布構成](docs/AUTOMATIC_DELIVERY.md)と[Slack通知](docs/SLACK.md)を参照してください。
 
 アイコンとテーマカラーはspecs/BRAND.md、事前のCI確認範囲はdocs/CI_PREPARATION.mdを参照する。
 
@@ -32,6 +32,6 @@
 
 映像解析はMac/iPhoneのカメラ補助パネルに実装。[カメラ仕様](specs/CAMERA_ANALYSIS.md)と[開発・検証手順](docs/CAMERA_DEVELOPMENT.md)を参照。
 
-音声取得・解析の初版は [AudioCapture](experiments/AudioCapture/README.md) で単体検証できます。[移植範囲と本体への統合点](docs/AUDIO_CAPTURE.md)・[進捗と残作業（Issue #12）](https://github.com/MinobeRyo/kanpeki/issues/12) を参照。本体iPhoneのメニュー→その他→確認・接続→「音声を試す」から録音・分析を検証できます。発表セッションとの統合は実装済みで、実機検証は未完了です。
+音声取得・解析は [AudioCapture](experiments/AudioCapture/README.md) の共有部品を本体iPhoneから利用します。[統合範囲](docs/AUDIO_CAPTURE.md)と[Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12)を参照。メニュー→その他→確認・接続→「音声を試す」は独立試験入口。発表UUIDへの明示録音・終了停止・同発表の音声結果入口はPR #60で部分統合済み。時計・統一結果の統合と実機検証は残件です。
 
 Macの音声分析は上部「音声分析」からモデル準備・受信・接続コード表示・結果確認まで行えます。[使い方と検証範囲](docs/MAC_AUDIO.md)。
