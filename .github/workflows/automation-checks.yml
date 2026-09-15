@@ -1,0 +1,23 @@
+name: Automation checks
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'Tests/test_*.py'
+      - '.github/workflows/**'
+      - 'infrastructure/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: automation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s Tests -p 'test_*.py'

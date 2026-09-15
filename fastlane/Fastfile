@@ -1,0 +1,99 @@
+require "shellwords"
+require "json"
+
+def kanpeki_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_filepath: File.join(ENV.fetch("RELEASE_DIR"), "api.p8"),
+    duration: 1200,
+    in_house: false
+  )
+end
+
+def beta_options(key, version, number)
+  {
+    api_key: key,
+    app_identifier: "jp.kanpeki.prototype.phone",
+    apple_id: "6809810244",
+    app_version: version,
+    build_number: number,
+    groups: [ENV.fetch("TESTFLIGHT_EXTERNAL_GROUP")],
+    distribute_external: true,
+    notify_external_testers: true,
+    submit_beta_review: true,
+    skip_waiting_for_build_processing: false,
+    wait_processing_timeout_duration: 1800,
+    wait_processing_interval: 30,
+    expire_previous_builds: false,
+    changelog: File.read(File.expand_path("../docs/TESTFLIGHT_NOTES.txt", __dir__))
+  }
+end
+
+def assert_release_context
+  UI.user_error!("Release only from main on GitHub Actions") unless ENV["GITHUB_ACTIONS"] == "true" && ENV["GITHUB_REF"] == "refs/heads/main"
+end
+
+def report_submission(version, number)
+  File.open(ENV.fetch("GITHUB_STEP_SUMMARY"), "a") do |f|
+    f.puts "## TestFlight #{version} (#{number})"
+    f.puts "Upload, processing and external-group submission completed. Apple beta review may still be pending; this does not mean every tester can install yet."
+    f.puts "[TestFlight](https://appstoreconnect.apple.com/apps/6809810244/testflight)"
+  end
+end
+
+default_platform(:ios)
+platform :ios do
+  desc "Archive main and submit to the configured team beta group"
+  lane :beta do
+    assert_release_context
+    root = File.expand_path("..", __dir__)
+    key = kanpeki_api_key
+    number = ENV.fetch("RELEASE_BUILD_NUMBER")
+    version = get_version_number(xcodeproj: File.join(root,"Kanpeki.xcodeproj"), target: "KanpekiPhone")
+    args = {
+      "CURRENT_PROJECT_VERSION" => number,
+      "CODE_SIGN_STYLE" => "Manual",
+      "DEVELOPMENT_TEAM" => "XYJX89KRDM",
+      "CODE_SIGN_IDENTITY" => "Apple Distribution",
+      "PROVISIONING_PROFILE_SPECIFIER" => ENV.fetch("PROFILE_UUID")
+    }.map { |k,v| "#{k}=#{Shellwords.escape(v)}" }.join(" ")
+    ipa = build_app(
+      project: File.join(root,"Kanpeki.xcodeproj"), scheme: "KanpekiPhone",
+      configuration: "Release", destination: "generic/platform=iOS",
+      derived_data_path: File.join(root,".build/cd"),
+      archive_path: File.join(root,".build/KanpekiPhone.xcarchive"),
+      output_directory: File.join(root,".build/export"), output_name: "KanpekiPhone.ipa",
+      export_method: "app-store", clean: true, xcargs: args,
+      export_options: {
+        signingStyle: "manual", teamID: "XYJX89KRDM",
+        manageAppVersionAndBuildNumber: false,
+        provisioningProfiles: { "jp.kanpeki.prototype.phone" => ENV.fetch("PROFILE_UUID") }
+      }
+    )
+    upload_to_testflight(**beta_options(key, version, number), ipa: ipa)
+    report_submission(version, number)
+  end
+end
+
+platform :mac do
+  desc "Upload the sandboxed Mac package and submit external beta review"
+  lane :beta do
+    assert_release_context
+    key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_P8_BASE64"), is_key_content_base64: true,
+      duration: 1200, in_house: false
+    )
+    upload_to_testflight(
+      api_key: key, app_identifier: "jp.kanpeki.prototype.mac", apple_id: "6811774996",
+      app_platform: "osx", pkg: File.expand_path("../dist/KanpekiMac.pkg", __dir__),
+      app_version: "0.1.0", build_number: "#{ENV.fetch('GITHUB_RUN_NUMBER')}.#{ENV.fetch('GITHUB_RUN_ATTEMPT')}.0",
+      groups: ["7d3f3f2e-7cb0-4123-a4df-2a1b52ef934b"],
+      distribute_external: true, notify_external_testers: true, submit_beta_review: true,
+      skip_waiting_for_build_processing: false, wait_processing_timeout_duration: 1800,
+      wait_processing_interval: 30, expire_previous_builds: false,
+      changelog: "Mac版をTestFlightに対応。PowerPoint画面・PPTX原稿の同期と、iPhoneからの前へ／次へを確認してください。"
+    )
+  end
+end

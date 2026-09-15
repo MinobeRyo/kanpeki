@@ -1,0 +1,20 @@
+name: 開発タスク
+description: 担当・範囲・完了条件を共有
+labels: ["status:todo"]
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 目的と完了条件
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 変更予定のファイル・依存するIssue
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: 検証方法・必要な端末

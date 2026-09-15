@@ -1,0 +1,28 @@
+# Local build products and editor state
+.build/
+build/
+DerivedData/
+**/xcuserdata/
+*.xcuserstate
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local LLM weights and caches (download via Ollama, not Git)
+.ollama/
+models/
+*.gguf
+*.safetensors
+
+# Deck contents, raw prompts, exported results, and local experiment logs
+/evaluation/
+/slidepacer-*.json
+*.pptx
+*.ppt
+*.log
+
+# Local credentials / machine overrides
+.env
+.env.*
+!.env.example
+*.local.xcconfig
