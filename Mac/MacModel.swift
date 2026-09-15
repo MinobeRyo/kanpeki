@@ -11,6 +11,9 @@ import UniformTypeIdentifiers
     @Published var state = PresentationState()
     @Published var deck: ImportedDeck?
     @Published var importing = false
+    @Published private(set) var documentRevision = UUID()
+    @Published private(set) var openingDocument = false
+    @Published private(set) var powerPointOpened = false
     @Published var monitoring = false
     @Published var errorMessage: String?
     @Published var events: [SlideObservation] = []
@@ -314,20 +317,51 @@ import UniformTypeIdentifiers
     }
 
     func importDeck() {
+        guard !importing, !openingDocument, !presentationStarting, !timerFinishing,
+              state.timer?.phase == .ready else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "pptx") ?? .data]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         importing = true
+        let session = state.timer?.sessionID
         Task {
+            defer { importing = false }
             do {
                 let imported = try await Task.detached(priority: .userInitiated) { try PPTXImporter.load(url) }.value
+                guard state.timer?.phase == .ready, state.timer?.sessionID == session, !presentationStarting else { return }
+                if capture.sharing { await stopSharing() }
+                guard state.timer?.phase == .ready, state.timer?.sessionID == session, !presentationStarting else { return }
                 deck = imported
-                if monitoring { pollPosition() }
+                documentRevision = UUID()
+                selectedWindowID = nil
+                powerPointOpened = false
+                errorMessage = nil
             } catch { errorMessage = error.localizedDescription }
-            importing = false
         }
+    }
+
+    func openDeckInPowerPoint() async {
+        guard let deck, !openingDocument, !importing, !presentationStarting,
+              !timerFinishing, state.timer?.phase == .ready else { return }
+        guard let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.Powerpoint") else {
+            errorMessage = "PowerPointが見つかりません。インストール後、もう一度開いてください。"
+            return
+        }
+        let revision = documentRevision
+        let session = state.timer?.sessionID
+        openingDocument = true
+        let scoped = deck.url.startAccessingSecurityScopedResource()
+        defer { openingDocument = false; if scoped { deck.url.stopAccessingSecurityScopedResource() } }
+        do {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            _ = try await NSWorkspace.shared.open([deck.url], withApplicationAt: application, configuration: configuration)
+            guard documentRevision == revision, state.timer?.sessionID == session, state.timer?.phase == .ready else { return }
+            powerPointOpened = true
+            errorMessage = nil
+        } catch { errorMessage = "PowerPointで開けませんでした。資料の場所を確認して、もう一度試してください。" }
     }
 
     func resetLog() {

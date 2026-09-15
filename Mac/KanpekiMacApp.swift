@@ -3,24 +3,30 @@ import KanpekiCamera
 
 @main struct KanpekiMacApp: App {
     @StateObject private var model = MacModel()
-    @State private var showPreparation = true
     @State private var showScreenReview = false
     @AppStorage("macNotesSize") private var notesSize = 0
+    @FocusedValue(\.preparationActions) private var actions
     var body: some Scene {
         WindowGroup("カンペき · Mac") {
-            MacScreen(model: model, capture: model.capture, link: model.link,
-                showPreparation: $showPreparation, showScreenReview: $showScreenReview)
-        }
-            .defaultSize(width: 1440, height: 900)
+            MacScreen(model: model, capture: model.capture, link: model.link, showScreenReview: $showScreenReview)
+        }.defaultSize(width: 1200, height: 800)
             .commands {
+                CommandMenu("準備") {
+                    Button("共有画面を選ぶ…") { actions?.window() }
+                    Button("接続方法を変更…") { actions?.connection() }
+                    Button("時間を調整…") { actions?.time() }
+                    Divider()
+                    Button("カメラの設定・結果") { actions?.camera() }
+                    Button("接続の詳細") { actions?.details() }
+                }
+
                 CommandGroup(after: .newItem) {
+                    Button("資料を選ぶ…") { model.importDeck() }
                     Button("切替記録をJSONで書き出す") { model.exportLog() }.disabled(model.events.isEmpty)
                     Button("新規記録") { model.resetLog() }
                 }
                 CommandGroup(after: .toolbar) {
-                    Button("準備パネルを表示／非表示") { showPreparation.toggle() }
-                    Button("画面構成を試す") { showScreenReview = true }
-                    Divider()
+                    Button("画面構成の見本") { showScreenReview = true }
                     Button("原稿を大きく") { notesSize = min(2, max(0, notesSize) + 1) }.keyboardShortcut("+")
                     Button("原稿を小さく") { notesSize = max(0, min(2, notesSize) - 1) }.keyboardShortcut("-")
                 }
@@ -32,12 +38,11 @@ struct MacScreen: View {
     @ObservedObject var model: MacModel
     @ObservedObject var capture: WindowCapture
     @ObservedObject var link: PeerLink
-    @Binding var showPreparation: Bool
     @Binding var showScreenReview: Bool
-    @AppStorage("macPreparationGuide") private var showGuide = true
     @AppStorage("macNotesSize") private var notesSize = 0
     @State private var showDetails = false
     @State private var macOnly = false
+    @State private var screenOnly = false
     @State private var endingSession: UUID?
     @State private var adjustment: MacTimeDraft?
     @State private var windowDraft: MacPreparationDraft?
@@ -45,95 +50,99 @@ struct MacScreen: View {
     @StateObject private var camera = CameraController()
     @State private var presentationResult = PresentationResultAssociation()
     @State private var showCamera = false
-    private let ink = BrandColor.ink
-    private let paper = BrandColor.paper
-    private let mint = BrandColor.mint
+    private let ink = BrandColor.ink, paper = BrandColor.paper, mint = BrandColor.mint
     private var presenting: Bool { model.state.timer?.phase == .running || model.state.timer?.phase == .paused }
+    private var busy: Bool { model.importing || model.openingDocument || model.presentationStarting || model.timerFinishing }
+    private var step: MacSetupStep {
+        .next(document: model.deck != nil, screenOnly: screenOnly, opened: model.powerPointOpened,
+              window: capture.windows.contains { $0.id == model.selectedWindowID },
+              connected: link.connectedName != nil, macOnly: macOnly, time: model.state.timer?.durationSeconds != nil)
+    }
+    private var showingDocumentPreview: Bool {
+        model.deck != nil && !capture.sharing && !presenting && model.state.timer?.phase == .ready
+    }
     private var startReason: String? {
-        model.presentationStartReason ?? (link.connectedName == nil && !macOnly ? "iPhoneを接続するか、Macだけで始めるを選んでください。" : nil)
+        model.presentationStartReason ?? (link.connectedName == nil && !macOnly ? "iPhoneを接続してください。" : nil)
     }
 
     var body: some View {
-        GeometryReader { geometry in
-        VStack(spacing: 20) {
+        VStack(spacing: 22) {
             HStack(spacing: 12) {
-                Image("BrandMascot").resizable().scaledToFit().frame(width: 40, height: 40)
+                Image("BrandMascot").resizable().scaledToFit().frame(width: 36, height: 36)
                 Text("カンペき").font(.title2.bold())
-                PresentationTimerStatus(snapshot: model.state.timer, receivedAt: model.timerReceivedAt, connected: true)
                 Spacer()
-                Label("iPhone：\(link.connectedName ?? "未接続")", systemImage: "iphone")
-                    .font(.callout)
-                if presenting && !showPreparation {
-                    Button("発表を終了") { endingSession = model.state.timer?.sessionID }.disabled(model.timerFinishing)
+                if presenting || model.state.timer?.phase == .ended {
+                    PresentationTimerStatus(snapshot: model.state.timer, receivedAt: model.timerReceivedAt, connected: true)
                 }
-                Button { showPreparation.toggle() } label: { Image(systemName: "sidebar.right") }
-                    .help("準備パネルを表示／非表示")
-                Button { showDetails = true } label: { Image(systemName: "ellipsis").frame(width: 36, height: 36) }
-                    .accessibilityLabel("接続の詳細")
+                Label(link.connectedName ?? (macOnly ? "Macだけで練習" : "iPhone未接続"), systemImage: "iphone").font(.callout)
+                if !showingDocumentPreview { options }
             }
-            HStack(alignment: .top, spacing: 24) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(model.deck?.title ?? model.state.title).font(.headline).lineLimit(1)
-                        Spacer()
-                        Text(model.state.slideIndex.map { "\($0) / \(model.state.totalSlides)" } ?? "— / —").monospacedDigit()
-                    }
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 20).fill(paper)
-                        if let image = capture.image {
-                            Image(nsImage: image).resizable().scaledToFit()
-                        } else if capture.sharing {
-                            Label("スライド画像を更新中", systemImage: "arrow.triangle.2.circlepath")
-                        } else {
-                            VStack(spacing: 16) {
-                                Image("BrandMascot").resizable().scaledToFit().frame(width: 100, height: 100)
-                                Text("いつものスライドを、ここに。").font(.title2.bold())
-                                Text(showPreparation ? "右の手順に沿って準備しましょう" : "準備パネルを開いて画面を選びましょう").font(.callout)
+            if model.deck == nil && !screenOnly && !presenting && model.state.timer?.phase != .ended {
+                Spacer()
+                Image("BrandMascot").resizable().scaledToFit().frame(width: 112, height: 112)
+                Text("発表する資料を選びましょう").font(.largeTitle.bold())
+                Text("PowerPointの資料を、そのまま確認できます。")
+                Button(model.importing ? "読み込み中…" : "PPTXを選ぶ") { model.importDeck() }
+                    .buttonStyle(BrandPrimaryButtonStyle()).disabled(busy)
+                Spacer()
+            } else {
+                HStack(alignment: .top, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Text(model.deck?.title ?? model.state.title).font(.headline).lineLimit(1)
+                            Spacer()
+                            if let index = model.state.slideIndex, capture.sharing {
+                                Text("\(index) / \(model.state.totalSlides)").monospacedDigit()
+                            } else if let deck = model.deck { Text("\(deck.slides.count)枚").foregroundStyle(.secondary) }
+                        }
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 20).fill(paper)
+                            if let image = capture.image, capture.sharing {
+                                Image(nsImage: image).resizable().scaledToFit()
+                            } else if presenting || capture.sharing {
+                                Label("発表画面の更新を待っています", systemImage: "arrow.triangle.2.circlepath")
+                            } else if model.state.timer?.phase == .ended {
+                                Label("発表を終了しました", systemImage:"checkmark.circle").font(.title2)
+                            } else if let deck = model.deck {
+                                DocumentPreview(url: deck.url).id(model.documentRevision).padding(12)
+                            } else { Label("共有する画面を選びましょう", systemImage: "rectangle.on.rectangle") }
+                        }.frame(maxWidth: .infinity, maxHeight: .infinity).frame(minHeight: 280)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                        if showingDocumentPreview {
+                            Text("資料プレビュー · 発表画面は次の手順で共有します").font(.caption).foregroundStyle(.secondary)
+                        }
+                        if presenting && capture.sharing && model.state.frameReady == true {
+                            HStack {
+                                Button { model.move(.previous) } label: { Image(systemName: "chevron.left").frame(width: 36, height: 30) }
+                                    .accessibilityLabel("前のスライド").disabled(!model.state.canMoveSlide(.previous))
+                                Button { model.move(.next) } label: { Image(systemName: "chevron.right").frame(width: 36, height: 30) }
+                                    .accessibilityLabel("次のスライド").disabled(!model.state.canMoveSlide(.next))
+                                Spacer()
+                                Text("← → キーでも操作できます").font(.caption).foregroundStyle(.secondary)
+                            }
+                            if !model.state.notes.isEmpty {
+                                ScrollView {
+                                    Text(model.state.notes).font(.system(size: [18.0,22.0,26.0][min(2,max(0,notesSize))]))
+                                        .lineSpacing(7).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                                }.frame(height: 140).padding(20).background(paper,in:RoundedRectangle(cornerRadius:20))
                             }
                         }
-                    }.frame(height: max(180, geometry.size.height * 0.50)).frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                    HStack {
-                        Button { model.move(.previous) } label: { Image(systemName: "chevron.left").frame(width: 36, height: 30) }
-                            .accessibilityLabel("前のスライド")
-                            .help("前のスライド（←キー・文字編集中を除く）")
-                            .disabled(model.state.frameReady != true || !model.state.canMoveSlide(.previous))
-                        Button { model.move(.next) } label: { Image(systemName: "chevron.right").frame(width: 36, height: 30) }
-                            .accessibilityLabel("次のスライド")
-                            .help("次のスライド（→キー・文字編集中を除く）")
-                            .disabled(model.state.frameReady != true || !model.state.canMoveSlide(.next))
-                        Spacer()
-                        Label(model.state.message, systemImage: model.state.frameReady == true ? "checkmark.circle" : "info.circle")
-                            .font(.callout).lineLimit(2)
                     }
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("原稿").font(.headline)
-                            Spacer()
-                            Button("A−") { notesSize = max(0, min(2, notesSize) - 1) }.disabled(notesSize <= 0).help("原稿を小さく（⌘−）")
-                            Button("A＋") { notesSize = min(2, max(0, notesSize) + 1) }.disabled(notesSize >= 2).help("原稿を大きく（⌘＋）")
-                        }
-                        ScrollView {
-                            Text(model.state.notes.isEmpty ? "スライドと原稿が同期すると、ここに表示されます。" : model.state.notes)
-                                .font(.system(size: [18.0, 22.0, 26.0][min(2, max(0, notesSize))])).lineSpacing(7).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
-                        }.frame(minHeight: 80, maxHeight: .infinity)
-                        if model.state.notes.isEmpty { Text(model.state.notesStatus).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-                    }.padding(20).background(paper, in: RoundedRectangle(cornerRadius: 20))
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if !presenting || !capture.sharing || model.state.frameReady != true {
+                        nextAction.frame(width: 300)
+                    }
+                }
             }
-        }.padding(24)
-        }.frame(minWidth: 780, minHeight: 640)
+        }.padding(28).frame(minWidth: 860, minHeight: 620)
             .background(mint).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
-            .inspector(isPresented: $showPreparation) {
-                preparation.inspectorColumnWidth(min: 320, ideal: 408, max: 408)
-            }
-            .background(MacSlideKeyboard(model: model, onNarrowWindow: { showPreparation = false }).frame(width: 0, height: 0))
+            .background(MacSlideKeyboard(model: model, onNarrowWindow: {}).frame(width: 0, height: 0))
             .task { await capture.refreshWindows() }
-            .onChange(of: model.deck?.url) { _, _ in Task { await capture.refreshWindows() } }
-            .onChange(of: showPreparation) { _, visible in if visible { Task { await capture.refreshWindows() } } }
-            .onChange(of: capture.message) { _, message in
-                if capture.needsScreenPermission { model.errorMessage = message }
-            }
+            .onChange(of: model.documentRevision) { _, _ in screenOnly = false }
+            .focusedSceneValue(\.preparationActions, MacPreparationActions(
+                window: { selectWindow() },
+                connection: { if !busy { connectionDraft = preparationDraft() } },
+                time: { if !busy, model.state.timer?.phase == .ready, let snapshot = model.state.timer { adjustment = MacTimeDraft(snapshot:snapshot) } },
+                camera: { showCamera = true }, details: { showDetails = true }))
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
                 VStack {
@@ -154,7 +163,6 @@ struct MacScreen: View {
                 camera: camera, association: $presentationResult))
             .onChange(of: model.state.timer?.phase) { _, phase in
                 if phase == .ended { camera.stop() }
-                if phase == .running { showPreparation = false }
             }
             .sheet(item: $adjustment) { draft in
                 TimeAdjustmentFlow(initialSeconds: draft.snapshot.durationSeconds,
@@ -204,124 +212,99 @@ struct MacScreen: View {
             } message: { Text(model.errorMessage ?? "") }
     }
 
-    private var preparation: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text(presenting ? "発表中の設定" : "準備").font(.largeTitle.bold())
-                    if model.state.timer?.phase == .ready {
-                        stepCard("1 資料", complete: model.deck != nil) {
-                            Text(model.deck.map { "\($0.title) · \($0.slides.count)枚" } ?? "PowerPointで発表資料を開いてください")
-                            Button(model.importing ? "読込中…" : "PPTXの原稿を選ぶ") { model.importDeck() }
-                                .disabled(model.importing || model.presentationStarting)
-                            Text("原稿の読込は任意です。共有する資料と同じPPTXを選びます。").font(.caption)
-                        }
-                        stepCard("2 共有画面", complete: capture.windows.contains { $0.id == model.selectedWindowID }) {
-                            HStack {
-                                Text(capture.windows.first { $0.id == model.selectedWindowID }?.label ?? "共有する画面を選んでください")
-                                Spacer()
-                                Button { Task { await capture.refreshWindows(requestPermission: true) } } label: { Image(systemName: "arrow.clockwise") }
-                                    .help("共有ウィンドウを更新").disabled(capture.refreshing || model.presentationStarting)
-                            }
-                            if capture.needsScreenPermission {
-                                Text("画面を共有するには画面収録の許可が必要です。").font(.callout)
-                                Button("画面収録を許可して探す") { Task { await capture.refreshWindows(requestPermission: true) } }
-                                Button("システム設定を開く") { capture.openScreenPermissionSettings() }
-                            } else {
-                                Button("共有画面を選ぶ") { windowDraft = preparationDraft() }.disabled(model.presentationStarting)
-                                Text("PowerPoint以外は表示のみです。").font(.caption)
-                            }
-                        }
-                        stepCard("3 iPhone", complete: link.connectedName != nil || macOnly) {
-                            Text(link.connectedName ?? (macOnly ? "Macだけで始める" : "iPhoneで使う場合は接続方法を選びます。"))
-                            Button("接続方法を選ぶ") { connectionDraft = preparationDraft() }.disabled(model.presentationStarting)
-                            if link.running && link.connectedName == nil {
-                                Text(link.status).font(.caption)
-                                Button("接続待機を停止") { link.stop() }.disabled(model.presentationStarting)
-                            }
-                        }
-                    }
-                    GroupBox("発表時間") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            PresentationTimerStatus(snapshot: model.state.timer, receivedAt: model.timerReceivedAt, connected: true)
-                            if let snapshot = model.state.timer {
-                                if snapshot.phase == .ready {
-                                    Button("時間を調整", systemImage: "timer") { adjustment = MacTimeDraft(snapshot: snapshot) }
-                                        .disabled(model.presentationStarting || model.timerFinishing)
-                                } else if presenting {
-                                    Button(snapshot.phase == .running ? "一時停止" : "再開") {
-                                        model.timerAction(snapshot.phase == .running ? .pause : .resume, duration: nil)
-                                    }.disabled(model.timerFinishing)
-                                }
-                            }
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    if presenting {
-                        GroupBox("共有とスライド操作") {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text(capture.windows.first { $0.id == model.selectedWindowID }?.label ?? "共有画面を選び直してください")
-                                if capture.needsScreenPermission {
-                                    Button("画面収録を許可して探す") { Task { await capture.refreshWindows(requestPermission: true) } }
-                                    Button("システム設定を開く") { capture.openScreenPermissionSettings() }
-                                }
-                                Button("共有・操作を確認し直す") {
-                                    Task {
-                                        await capture.refreshWindows()
-                                        windowDraft = preparationDraft()
-                                    }
-                                }.disabled(model.presentationStarting || model.timerFinishing || capture.needsScreenPermission ||
-                                    (link.connectedName == nil && !macOnly))
-                                Text("画面を選んで確認後、共有とPowerPoint操作を復旧します。発表タイマーはそのままです。").font(.caption)
-                                if link.connectedName == nil {
-                                    Text(macOnly ? "Macだけで使用中" : "復旧にはiPhoneの再接続か、Macだけで使う選択が必要です。").font(.caption)
-                                    Button("接続方法を選ぶ") { connectionDraft = preparationDraft() }.disabled(model.presentationStarting)
-                                }
-                            }.frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    Button { showCamera = true } label: { Label("カメラの設定・結果", systemImage: "video") }
-                    PresentationResultsButton(association: presentationResult, camera: camera)
-                    if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)").font(.caption) }
-                }.padding(22)
+
+    private var options: some View {
+        Menu {
+            if presenting {
+                Button(model.state.timer?.phase == .running ? "一時停止" : "再開") {
+                    model.timerAction(model.state.timer?.phase == .running ? .pause : .resume, duration: nil)
+                }.disabled(busy)
+                Button("発表を終了") { endingSession = model.state.timer?.sessionID }.disabled(busy)
+                Divider()
+                Button("共有画面を選び直す") { selectWindow() }.disabled(busy)
+            } else if model.state.timer?.phase == .ready {
+                Button("資料を選び直す…") { model.importDeck() }.disabled(busy)
+                Button("PowerPointで開く") { Task { await model.openDeckInPowerPoint() } }.disabled(model.deck == nil || busy)
+                Button("共有画面を選ぶ") { selectWindow() }.disabled(busy)
+                if model.deck == nil { Button("資料を選ばず、画面を共有") { screenOnly = true } }
+                Button("時間を調整") { if let value = model.state.timer { adjustment = MacTimeDraft(snapshot:value) } }.disabled(busy)
             }
+            Button("接続方法を変更") { connectionDraft = preparationDraft() }.disabled(busy || model.state.timer?.phase == .ended)
+            if link.running && link.connectedName == nil { Button("接続待機を停止") { link.stop() }.disabled(busy) }
             Divider()
-            VStack(alignment: .leading, spacing: 12) {
-                if showGuide {
-                    HStack {
-                        Image("BrandMascot").resizable().scaledToFit().frame(width: 52, height: 52)
-                        Text(presenting ? "手元のスライドに集中しよう" : (startReason == nil ? "準備ができたら始めよう" : "資料・共有画面・接続を順に確認しよう"))
-                            .font(.callout)
-                        Button { showGuide = false } label: { Image(systemName: "xmark") }.help("案内を閉じる")
-                    }
-                } else { Button("案内を表示") { showGuide = true }.font(.caption) }
-                if model.presentationStarting {
-                    HStack { ProgressView(); Text("共有とスライドを確認中") }
-                    Button(presenting ? "復旧をキャンセル" : "開始をキャンセル") { model.cancelPresentationStart() }
-                } else if presenting {
-                    Button("発表を終了") { endingSession = model.state.timer?.sessionID }
-                        .buttonStyle(BrandPrimaryButtonStyle()).disabled(model.timerFinishing)
-                } else if model.state.timer?.phase == .ended {
-                    Button("準備に戻る") { model.timerAction(.reset, duration: nil); showPreparation = true }
-                        .buttonStyle(BrandPrimaryButtonStyle()).disabled(model.timerFinishing)
-                } else {
-                    if let reason = startReason { Text(reason).font(.callout) }
-                    Button("発表を始める") { Task { await model.beginPresentation(macOnly: macOnly) } }
-                        .buttonStyle(BrandPrimaryButtonStyle()).disabled(startReason != nil)
-                }
-            }.padding(22)
-        }.background(paper).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
+            Button("カメラの設定・結果") { showCamera = true }
+            Menu("原稿の文字サイズ") {
+                Button("標準") { notesSize = 0 }; Button("大") { notesSize = 1 }; Button("特大") { notesSize = 2 }
+            }
+            Button("接続の詳細") { showDetails = true }
+            Button("画面構成の見本") { showScreenReview = true }
+        } label: { Image(systemName:"ellipsis").frame(width:32,height:28) }
+            .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("その他の操作")
     }
 
-    private func stepCard<Content: View>(_ title: String, complete: Bool, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: complete ? "checkmark.circle.fill" : "circle").font(.headline)
-            content()
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
-            .background(complete ? mint : Color.white.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
+    private var nextAction: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if model.presentationStarting {
+                ProgressView()
+                Text(presenting ? "共有画面を確認しています" : "発表の準備を確認しています").font(.title2.bold())
+                Button("キャンセル") { model.cancelPresentationStart() }
+            } else if presenting {
+                Text("発表画面を確認しましょう").font(.title2.bold())
+                Text("タイマーはそのまま、共有を復旧します。")
+                Button("共有画面を選び直す") { selectWindow() }.buttonStyle(BrandPrimaryButtonStyle()).disabled(busy)
+            } else if model.state.timer?.phase == .ended {
+                Text("おつかれさまでした").font(.title2.bold())
+                PresentationResultsButton(association: presentationResult, camera: camera)
+                Button("次の練習を準備") { model.timerAction(.reset,duration:nil) }.buttonStyle(BrandPrimaryButtonStyle()).disabled(busy)
+            } else {
+                Text("資料 → 画面 → 接続 → 時間").font(.caption).foregroundStyle(.secondary)
+                switch step {
+                case .document:
+                    Text("発表する資料を選びましょう").font(.title2.bold())
+                    Button("PPTXを選ぶ") { model.importDeck() }.buttonStyle(BrandPrimaryButtonStyle()).disabled(busy)
+                case .powerPoint:
+                    Text("次は、発表画面を開きます").font(.title2.bold())
+                    Text("選んだ資料をPowerPointで開きます。")
+                    Button(model.openingDocument ? "開いています…" : "PowerPointで開く") { Task { await model.openDeckInPowerPoint() } }
+                        .buttonStyle(BrandPrimaryButtonStyle()).disabled(busy)
+                case .window:
+                    Text("発表画面を選びましょう").font(.title2.bold())
+                    Text(screenOnly ? "iPhoneに映すウィンドウを選びます。" : "PowerPointでスライドショーを開始してから、画面を選びます。")
+                    Button(capture.refreshing ? "画面を探しています…" : "共有画面を選ぶ") { selectWindow() }
+                        .buttonStyle(BrandPrimaryButtonStyle()).disabled(busy || capture.refreshing)
+                case .connection:
+                    Text(link.running ? "iPhoneの接続を待っています" : "iPhoneを使いますか？").font(.title2.bold())
+                    Text(link.running ? "iPhoneの「Macにつなぐ」から、このMacを選んでください。" : "Macだけでも練習できます。")
+                    Button(link.running ? "接続方法を変更" : "接続方法を選ぶ") { connectionDraft = preparationDraft() }
+                        .buttonStyle(BrandPrimaryButtonStyle()).disabled(busy)
+                case .time:
+                    Text("発表時間を決めましょう").font(.title2.bold())
+                    Button("時間を設定") { if let snapshot = model.state.timer { adjustment = MacTimeDraft(snapshot:snapshot) } }
+                        .buttonStyle(BrandPrimaryButtonStyle()).disabled(busy)
+                case .ready:
+                    Text("準備ができました").font(.title2.bold())
+                    if let duration = model.state.timer?.durationSeconds { Text("発表時間 \(PresentationTimerText.time(duration))").font(.title.bold()) }
+                    Text(macOnly ? "Macだけで練習します。" : "iPhoneからスライドを操作できます。")
+                    if let reason = startReason { Text(reason).font(.callout) }
+                    Button("発表を始める") { Task { await model.beginPresentation(macOnly:macOnly) } }
+                        .buttonStyle(BrandPrimaryButtonStyle()).disabled(startReason != nil || busy)
+                }
+            }
+        }.padding(24).frame(maxWidth:.infinity,alignment:.leading).background(paper,in:RoundedRectangle(cornerRadius:20))
+    }
+
+    private func selectWindow() {
+        guard !busy, !capture.refreshing, let draft = preparationDraft() else { return }
+        Task {
+            await capture.refreshWindows(requestPermission:true)
+            guard canPrepare(draft) else { return }
+            if capture.needsScreenPermission { model.errorMessage = capture.message }
+            else { windowDraft = draft }
+        }
     }
 
     private func canAdjust(_ draft: MacTimeDraft) -> Bool {
-        !model.presentationStarting && !model.timerFinishing &&
+        !model.presentationStarting && !model.timerFinishing && !model.importing && !model.openingDocument &&
         model.state.timer?.phase == .ready &&
         model.state.timer?.sessionID == draft.snapshot.sessionID &&
         model.state.timer?.revision == draft.snapshot.revision &&
@@ -333,7 +316,7 @@ struct MacScreen: View {
     }
 
     private func canPrepare(_ draft: MacPreparationDraft) -> Bool {
-        !model.presentationStarting && !model.timerFinishing &&
+        !model.presentationStarting && !model.timerFinishing && !model.importing && !model.openingDocument &&
         model.state.timer?.phase == draft.timer.phase && draft.timer.phase != .ended &&
         model.state.timer?.sessionID == draft.timer.sessionID && model.state.timer?.revision == draft.timer.revision &&
         model.preparationConnectionID == draft.connectionID
@@ -343,4 +326,19 @@ struct MacScreen: View {
 private struct MacTimeDraft: Identifiable {
     let id = UUID()
     let snapshot: PresentationTimerSnapshot
+}
+
+private struct MacPreparationActions {
+    var window: () -> Void
+    var connection: () -> Void
+    var time: () -> Void
+    var camera: () -> Void
+    var details: () -> Void
+}
+private struct MacPreparationActionsKey: FocusedValueKey { typealias Value = MacPreparationActions }
+private extension FocusedValues {
+    var preparationActions: MacPreparationActions? {
+        get { self[MacPreparationActionsKey.self] }
+        set { self[MacPreparationActionsKey.self] = newValue }
+    }
 }
