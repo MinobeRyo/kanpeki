@@ -48,7 +48,7 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
         #else
         let label = UIDevice.current.name
         #endif
-        localPeer = MCPeerID(displayName: String(label.prefix(40)))
+        localPeer = MCPeerID(displayName: PairingTicket.safeDisplayName(label))
         super.init()
         renewSession()
         direct.onTicket = { [weak self] in self?.pairingTicket = $0 }

@@ -17,6 +17,9 @@ import Foundation
                      ticket(ttl: 0).text, ticket(ttl: -1).text, ticket(ttl: 611).text] {
             precondition(PairingTicket.parse(text, now: now) == nil)
         }
-        print("Pairing ticket: 26 validation checks passed")
+        precondition(PairingTicket.safeDisplayName(String(repeating: "学", count: 40)).utf8.count <= 63)
+        precondition(PairingTicket.safeDisplayName(String(repeating: "👩‍💻", count: 40)).utf8.count <= 63)
+        precondition(!PairingTicket.safeDisplayName("").isEmpty)
+        print("Pairing ticket: 29 validation checks passed")
     }
 }

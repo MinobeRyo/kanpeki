@@ -23,6 +23,11 @@ struct PairingTicket: Codable, Equatable {
               validLocalIPv4(ticket.host) else { return nil }
         return ticket
     }
+    static func safeDisplayName(_ value: String) -> String {
+        var text = String(value.prefix(40))
+        while text.utf8.count > 63 { text.removeLast() }
+        return text.isEmpty ? "Kanpeki" : text
+    }
     static func validLocalIPv4(_ address: String) -> Bool {
         let p = address.split(separator: ".", omittingEmptySubsequences: false)
         guard p.count == 4, p.allSatisfy({ UInt8($0) != nil && String(UInt8($0)!) == $0 }) else { return false }
@@ -100,8 +105,8 @@ final class DirectPairing {
                 if case .ready = state { self.publishTicket() }
                 if case .failed = state { self.stop(); self.onEnd?("QR接続を開始できませんでした") }
             }
-            server.newConnectionHandler = { [weak self] conn in
-                guard let self, self.connection == nil, self.expires > Date() else { conn.cancel(); return }
+            server.newConnectionHandler = { [weak self, weak server] conn in
+                guard let self, let server, self.listener === server, self.connection == nil, self.expires > Date() else { conn.cancel(); return }
                 self.attach(conn)
             }
             server.start(queue: .main)
