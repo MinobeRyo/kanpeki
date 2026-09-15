@@ -508,6 +508,8 @@ import UniformTypeIdentifiers
         var value = PresentationState()
         value.timer = presentationTimer.snapshot(at: TimerClock.now)
         value.timer?.isFinishing = timerFinishing
+        value.analysisSharingID = analysisSharingID
+        value.practiceAnalysis = practiceAnalysis
         return value
     }
 
