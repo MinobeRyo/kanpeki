@@ -96,9 +96,12 @@ struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
     @State private var showDetails = false
+    @State private var showAudioTrial = false
+    @StateObject private var audioRecorder = RecorderModel()
     @State private var showScreenReview = false
     @State private var reviewAfterDetails = false
     @StateObject private var camera = CameraController()
+    @State private var presentationResult = PresentationResultAssociation()
     @State private var showCamera = false
     @StateObject private var notifications = PresentationNotificationPresenter()
     @Environment(\.scenePhase) private var cameraScenePhase
@@ -142,6 +145,9 @@ struct PhoneScreen: View {
                                 }.buttonStyle(.bordered)
                             }
                             Button("画面構成を試す") { showScreenReview = true }.buttonStyle(.bordered)
+                            Button("音声を試す") { showAudioTrial = true }
+                                .buttonStyle(.bordered)
+                                .disabled(camera.phase == .running || camera.phase == .preparing)
                             Text(link.status).font(.caption)
                             HStack {
                                 Image("BrandMascot").resizable().scaledToFit().frame(width: 72, height: 72)
@@ -202,6 +208,7 @@ struct PhoneScreen: View {
                                 if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)") }
                             }
                             Section("発表時間") {
+                                PresentationResultsButton(association: presentationResult, camera: camera)
                                 PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
                                     connected: link.connectedName != nil, canStart: model.state.isSharing,
                                     send: { model.timerAction($0, duration: $1) })
@@ -222,6 +229,9 @@ struct PhoneScreen: View {
                 }
         }.tint(ink).preferredColorScheme(.light)
         .fullScreenCover(isPresented: $showScreenReview) { ScreenReview() }
+        .fullScreenCover(isPresented: $showAudioTrial) {
+            AudioCaptureView(model: audioRecorder, logoName: "BrandMascot", onClose: { showAudioTrial = false })
+        }
         .onChange(of: cameraScenePhase) { _, phase in
             if phase != .active { model.sendPointer(nil) }
             if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {
@@ -229,6 +239,8 @@ struct PhoneScreen: View {
             }
         }
         .onDisappear { camera.stop(); model.sendPointer(nil) }
+        .modifier(PresentationResultsObserver(snapshot: model.state.timer, connected: link.connectedName != nil,
+            camera: camera, association: $presentationResult))
         .onChange(of: model.state.timer?.phase) { _, phase in
             if phase == .ended { camera.stop() }
         }
