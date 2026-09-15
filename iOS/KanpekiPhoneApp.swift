@@ -295,7 +295,11 @@ struct PhoneScreen: View {
                     camera.stop()
                     Task {
                         guard presentationAudioActive, model.state.timer?.sessionID == id else { return }
-                        await audioRecorder.start(presentationID: id)
+                        await audioRecorder.start(presentationID: id, canStart: {
+                            AudioRecordingIdentity.canStart(presentationID: id, currentID: model.state.timer?.sessionID,
+                                active: presentationAudioActive && cameraScenePhase == .active,
+                                receivedAt: model.timerReceivedAt, now: TimerClock.now)
+                        })
                     }
                 }
                 Text("任意の録音です。カメラ分析は停止します。音声の送信は終了後の明示操作のみ。")

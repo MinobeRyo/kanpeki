@@ -1,6 +1,12 @@
 import Foundation
 
 struct AudioRecordingIdentity: Equatable {
+    static func canStart(presentationID: UUID, currentID: UUID?, active: Bool,
+                         receivedAt: TimeInterval?, now: TimeInterval) -> Bool {
+        guard presentationID == currentID, active, let receivedAt,
+              receivedAt.isFinite, now.isFinite else { return false }
+        return (0..<3).contains(now - receivedAt)
+    }
     private(set) var recordingID: UUID?
     private(set) var presentationID: UUID?
     mutating func begin(presentationID: UUID?) {

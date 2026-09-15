@@ -49,8 +49,9 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         } catch { connectionMessage = error.localizedDescription }
     }
 
-    func start(presentationID: UUID? = nil) async {
+    func start(presentationID: UUID? = nil, canStart: @MainActor () -> Bool = { true }) async {
         guard phase == .ready else { return }
+        guard canStart() else { return }
         identity.begin(presentationID: presentationID)
         let attempt = identity.recordingID!
         pendingStartID = attempt
@@ -62,6 +63,11 @@ final class RecorderModel: NSObject, ObservableObject, AVAudioRecorderDelegate {
         guard allowed else {
             error = "マイクが許可されていません。iPhoneの設定からマイクを許可してください。"
             phase = .ready
+            return
+        }
+        guard canStart() else {
+            phase = .ready
+            notice = "発表の状態が変わったため、録音を開始しませんでした。"
             return
         }
         guard !Task.isCancelled, UIApplication.shared.applicationState == .active else { phase = .ready; return }

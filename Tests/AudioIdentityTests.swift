@@ -4,6 +4,13 @@ import Foundation
     static func main() throws {
         var identity = AudioRecordingIdentity()
         let presentation = UUID()
+        precondition(AudioRecordingIdentity.canStart(presentationID: presentation, currentID: presentation, active: true, receivedAt: 10, now: 12.9))
+        precondition(!AudioRecordingIdentity.canStart(presentationID: presentation, currentID: UUID(), active: true, receivedAt: 10, now: 11))
+        precondition(!AudioRecordingIdentity.canStart(presentationID: presentation, currentID: presentation, active: false, receivedAt: 10, now: 11))
+        precondition(!AudioRecordingIdentity.canStart(presentationID: presentation, currentID: presentation, active: true, receivedAt: nil, now: 11))
+        for stale in [13.0, 9.0, Double.infinity, Double.nan] {
+            precondition(!AudioRecordingIdentity.canStart(presentationID: presentation, currentID: presentation, active: true, receivedAt: 10, now: stale))
+        }
         precondition(!identity.belongs(to: presentation))
         identity.begin(presentationID: presentation)
         let recording = identity.recordingID!
