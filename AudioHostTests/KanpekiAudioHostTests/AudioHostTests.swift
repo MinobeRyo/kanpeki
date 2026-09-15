@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import KanpekiAudioHost
 
 final class AudioHostTests: XCTestCase {
@@ -130,6 +131,20 @@ final class AudioHostTests: XCTestCase {
         guard let path = env["KANPEKI_TEST_MODEL"], let wav = env["KANPEKI_TEST_WAV"] else {
             throw XCTSkip("実モデル検証は合成WAVとモデルを明示して実行する")
         }
+        func snapshot(_ model: AudioHostModel, name: String) throws {
+            guard let directory = env["KANPEKI_TEST_SNAPSHOTS"] else { return }
+            let view = NSHostingView(rootView: AudioHostPanel(model: model))
+            view.frame = NSRect(x: 0, y: 0, width: 760, height: 1000)
+            view.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            let folder = URL(fileURLWithPath: directory, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try data.write(to: folder.appendingPathComponent(name + ".png"))
+        }
+        let unprepared = AudioHostModel(modelURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        try snapshot(unprepared, name: "prepare")
         let url = URL(fileURLWithPath:path)
         let model = AudioHostModel(modelURL: url)
         for _ in 0..<100 {
@@ -143,6 +158,7 @@ final class AudioHostTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(50))
         }
         XCTAssertTrue(model.receiving, model.error ?? "listener not ready")
+        try snapshot(model, name: "receiving")
         let address = try XCTUnwrap(model.addresses.first)
         let id = UUID().uuidString.lowercased()
         var request = URLRequest(url: URL(string: address + "/v1/sessions")!)
@@ -161,6 +177,7 @@ final class AudioHostTests: XCTestCase {
         let report = try XCTUnwrap(model.report)
         XCTAssertEqual(report.transcriptionStatus, "complete")
         XCTAssertFalse(try XCTUnwrap(report.transcript).isEmpty)
+        try snapshot(model, name: "result")
         var resultRequest = URLRequest(url: URL(string: address + "/v1/sessions/" + id)!)
         resultRequest.setValue("Bearer " + model.code, forHTTPHeaderField: "Authorization")
         let resultData = try await URLSession.shared.data(for: resultRequest).0

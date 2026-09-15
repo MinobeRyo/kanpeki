@@ -81,8 +81,8 @@ public struct AudioHostPanel: View {
             }
             if let pace = report.pace {
                 Chart(Array(pace.enumerated()),id:\.offset) { _,item in
-                    BarMark(x:.value("開始からの秒数",item.start),y:.value("文字/分",item.charactersPerMinute))
-                }.frame(height:150).chartXAxisLabel("開始からの秒数")
+                    BarMark(xStart:.value("開始",item.start),xEnd:.value("終了",item.end),y:.value("文字/分",item.charactersPerMinute))
+                }.frame(height:150).chartXScale(domain:0...report.duration).chartXAxisLabel("開始からの秒数")
             }
             Text("低音量が続いた時間：\(report.quietSeconds,specifier:"%.1f")秒")
             ForEach(Array(report.quietIntervals.enumerated()),id:\.offset) { _,item in Text("\(clock(item.start))〜\(clock(item.end))") }
