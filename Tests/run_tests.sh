@@ -20,7 +20,13 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/Models.swift" "$project_dir/Shared/PracticeAnalysis.swift" "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" "$project_dir/Shared/SlideFrame.swift" \
   "$project_dir/Mac/PowerPointBridge.swift" "$project_dir/Tests/PowerPointBridgeTests.swift" -o "$test_dir/powerpoint-tests"
 "$test_dir/powerpoint-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/PeerApprovalState.swift" "$project_dir/Tests/PeerApprovalTests.swift" -o "$test_dir/peer-tests"
+"$test_dir/peer-tests"
 echo "Test artifacts: $test_dir"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/DirectPairing.swift" "$project_dir/Tests/PairingTicketTests.swift" -o "$test_dir/pairing-tests"
+"$test_dir/pairing-tests"
 xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
   "$project_dir/Tests/AudioIdentityTests.swift" -o "$test_dir/audio-identity-tests"
