@@ -37,7 +37,7 @@ struct MacWindowSelectionFlow: View {
                 Toggle("PowerPoint以外も表示", isOn: $showAllWindows)
                 if windows.isEmpty { Text("画面がありません。閉じて一覧を更新してください。") }
             }
-            if rejected || !canApply() { Text("準備状態が変わりました。閉じて選び直してください。").foregroundStyle(BrandColor.warning) }
+            if rejected || !canApply() { Label("準備状態が変わりました。閉じて選び直してください。", systemImage: "exclamationmark.triangle").foregroundStyle(BrandColor.ink) }
             HStack {
                 Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
@@ -79,7 +79,7 @@ struct MacConnectionSetupFlow: View {
                     Text("Macだけで始める").tag(true)
                 }.pickerStyle(.radioGroup)
             }
-            if rejected || !canApply() { Text("接続または準備状態が変わりました。閉じて選び直してください。").foregroundStyle(BrandColor.warning) }
+            if rejected || !canApply() { Label("接続または準備状態が変わりました。閉じて選び直してください。", systemImage: "exclamationmark.triangle").foregroundStyle(BrandColor.ink) }
             HStack {
                 Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
