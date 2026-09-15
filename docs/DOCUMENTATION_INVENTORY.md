@@ -1,6 +1,6 @@
 # 全ドキュメントの棚卸し
 
-2026-09-15、Issue #74。基準main：`e13496be9f5ec2a56cc79ba3e2b28f4c330dbbb0`（QR/承認/UI簡素化/文書更新ルールを含む）。trackedのMarkdown・txt・rst・adocを列挙し、以下84件を分類した。新規の本書を含め85件。未マージPRの文書はmain収録数へ含めず[STATUS](STATUS.md)で別記する。
+2026-09-15、Issue #74。基準main：`59618470b0dd3ed88289b5565a29879f4ed6fc7c`（QR/承認/UI簡素化/文書更新ルールを含む）。trackedのMarkdown・txt・rst・adocを列挙し、以下85件を分類した。新規の本書を含め86件。未マージPRの文書はmain収録数へ含めず[STATUS](STATUS.md)で別記する。
 
 「全更新」は全ファイルを機械的に変更することではない。現在の誤った断定を直し、正しい仕様・履歴・生成プロンプト・テンプレートは維持する。画像/動画とJSONモデルメタデータは文書数の対象外で、成果物・歴史値として保持した。trackedの独立LICENSE/NOTICE/COPYINGファイルは確認されず、各文書内の権利・配布元参照は維持。秘密情報・原資料は追加しない。
 
@@ -57,6 +57,7 @@
 | [docs/TEAM.md](../docs/TEAM.md) | 調査・維持 | 限定範囲を確認。個別仕様・手順は維持 |
 | [docs/TEAM_WORKFLOW.md](../docs/TEAM_WORKFLOW.md) | 現状更新 | main/未マージ/実機/配布の区別・操作・参照を修正 |
 | [docs/TESTFLIGHT_NOTES.txt](../docs/TESTFLIGHT_NOTES.txt) | 現状更新 | main/未マージ/実機/配布の区別・操作・参照を修正 |
+| [docs/TESTFLIGHT_TEAM.md](../docs/TESTFLIGHT_TEAM.md) | 別担当更新済み | PR #78統合。内部招待・更新・番号照合と未参加時の手順を確認 |
 | [docs/WORKTREES.md](../docs/WORKTREES.md) | 調査・維持 | 限定範囲を確認。個別仕様・手順は維持 |
 | [experiments/AudioCapture/README.md](../experiments/AudioCapture/README.md) | 現状更新 | main/未マージ/実機/配布の区別・操作・参照を修正 |
 | [experiments/AudioCapture/docs/INTEGRATION.md](../experiments/AudioCapture/docs/INTEGRATION.md) | 調査・維持 | 限定範囲を確認。個別仕様・手順は維持 |
@@ -65,7 +66,7 @@
 | [experiments/SlidePacer/docs/LLM_SHARING.md](../experiments/SlidePacer/docs/LLM_SHARING.md) | 調査・維持 | 限定範囲を確認。個別仕様・手順は維持 |
 | [experiments/SlidePacer/docs/TEAM_SETUP.md](../experiments/SlidePacer/docs/TEAM_SETUP.md) | 調査・維持 | 限定範囲を確認。個別仕様・手順は維持 |
 | [experiments/SlidePacer/docs/VALIDATION.md](../experiments/SlidePacer/docs/VALIDATION.md) | 履歴＋現状注記 | 当時の実測・失敗・準備制限を保存。現状はSTATUS |
-| [infrastructure/template/AGENTS.md](../infrastructure/template/AGENTS.md) | 別担当調整中 | #75でexport運用ルールを補修。#74では編集しない |
+| [infrastructure/template/AGENTS.md](../infrastructure/template/AGENTS.md) | 別担当更新済み | #75 / PR #79でexport運用ルール補修済み。#74では編集しない |
 | [infrastructure/template/README.md](../infrastructure/template/README.md) | テンプレート維持 | 別repoの生成前初期状態。本repoの未実装という意味ではない |
 | [infrastructure/template/docs/AI_TEAM.md](../infrastructure/template/docs/AI_TEAM.md) | テンプレート維持 | 別repoの生成前初期状態。本repoの未実装という意味ではない |
 | [infrastructure/template/docs/CD.md](../infrastructure/template/docs/CD.md) | テンプレート修正 | 別repoの生成前初期状態。本repoの未実装という意味ではない |
@@ -97,4 +98,4 @@
 - STATUSは確認SHA/時刻のスナップショット。PR #58の音声カメラ統合はpush済み未マージで、以前の未公開報告と区別した。
 - 相対Markdownリンクをローカル検査。テンプレートの生成時JSONはリンクから生成物の説明へ修正。外部ログイン後の到達性・提出先閲覧権限は未検証。
 - 実機・実音声・実カメラ・Apple配布を再実行していない。過去の成功数を今回の試験結果にしない。
-- コード/署名/CI/scriptsは本PRで変更しない。更新ルールは[DOCUMENTATION_WORKFLOW](DOCUMENTATION_WORKFLOW.md)（PR #76）。内容は自動保証されず、各機能PRで更新とレビューを続ける。
+- コード/署名/CI/scriptsは本PRで変更しない。更新ルールは[DOCUMENTATION_WORKFLOW](DOCUMENTATION_WORKFLOW.md)（PR #76/#79）。内容は自動保証されず、各機能PRで更新とレビューを続ける。

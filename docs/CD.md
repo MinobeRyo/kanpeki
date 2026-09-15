@@ -6,7 +6,7 @@
 
 PRの必要チェック→mainへ統合→TestFlight CDのLinux事前確認→共通core/Mac/iPhone検証→両アプリを同じコミットから署名・アップロード→Apple処理待ち→対象内部グループ割当→Slackで状態確認。旧Mac TestFlight CDは案内のみで二重配布しない。一般App Store公開・外部ベータ審査をこのCDから提出しない。
 
-内部テストはApp Store Connectユーザー招待とTestFlight招待の受諾が必要。外部用公開リンクを内部ビルドの入口にしない。iPhoneとMacは別アプリ・別内部グループ。[Mac手順](MAC_TESTFLIGHT.md)。
+[チームの導入手順](TESTFLIGHT_TEAM.md)に従い、内部テストはApp Store Connectユーザー招待とTestFlight招待の受諾が必要。外部用公開リンクを内部ビルドの入口にしない。iPhoneとMacは別アプリ・別内部グループ。[Mac手順](MAC_TESTFLIGHT.md)。
 
 ## 設定の確認
 

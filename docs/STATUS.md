@@ -1,6 +1,6 @@
 # 実装・残件・検証のスナップショット
 
-確認日：2026-09-15 13:35 JST。基準main：`e13496be9f5ec2a56cc79ba3e2b28f4c330dbbb0`。常時最新の担当・配布状態を保証する一覧ではない。作業状況は[最新Issues](https://github.com/MinobeRyo/kanpeki/issues)、統合状態は各PR、配布は対象コミット・ビルド番号で再確認する。[全文書の棚卸し](DOCUMENTATION_INVENTORY.md)。
+確認日：2026-09-15 13:42 JST。基準main：`59618470b0dd3ed88289b5565a29879f4ed6fc7c`。常時最新の担当・配布状態を保証する一覧ではない。作業状況は[最新Issues](https://github.com/MinobeRyo/kanpeki/issues)、統合状態は各PR、配布は対象コミット・ビルド番号で再確認する。[全文書の棚卸し](DOCUMENTATION_INVENTORY.md)。
 
 ## mainにある機能
 
@@ -24,7 +24,7 @@
 |---|---|---|
 | [#58](https://github.com/MinobeRyo/kanpeki/pull/58) `1283343` | 資料MCP実験＋発表全体の音声/カメラ根拠集約・返却・Mac/iPhone振り返り | [push報告](https://github.com/MinobeRyo/kanpeki/issues/33#issuecomment-5674648100)済み。事前資料分析のiPhone適用とは別経路。実ChatGPT新ツール返却・実機・配布は未検証 |
 | [#67](https://github.com/MinobeRyo/kanpeki/pull/67) `97f4e3f` | Mac準備カード・確認付き開始・共有復旧・案内保存 #61 | CI成功報告。実PowerPoint/権限/狭幅/操作一巡は未検証。「最大3操作」全達成ではない |
-| [#72](https://github.com/MinobeRyo/kanpeki/pull/72) `ad23c4c` | Mac内Whisper/受信/接続コード #63 | mainのPython手順をまだ置換しない。実端末・framework署名/配布確認はPR参照 |
+| [#72](https://github.com/MinobeRyo/kanpeki/pull/72) `da9e3c8` | Mac内Whisper/受信/接続コード #63 | mainのPython手順をまだ置換しない。実端末・framework署名/配布確認はPR参照 |
 | [#73](https://github.com/MinobeRyo/kanpeki/pull/73) `4af8e58` | 引用・数値・列挙・否定保持 #68 | 合成回帰と実資料品質を区別 |
 
 ## 文書から見つかった残件・未確定
@@ -42,5 +42,5 @@
 
 - 両アプリ0.1.0 (1018.1.0)は[CD run 34923131258](https://github.com/MinobeRyo/kanpeki/actions/runs/34923131258)成功、[Issue #28報告](https://github.com/MinobeRyo/kanpeki/issues/28#issuecomment-5674062963)にApple VALID / IN_BETA_TESTING / 内部グループ割当を記録。最新mainを含むとは限らない。
 - 全員利用完了とは別。[招待報告](https://github.com/MinobeRyo/kanpeki/issues/28#issuecomment-5674224642)では一部招待・受諾/追加が残る。今回はApple現在値を再照会していない。
-- 主経路は両方の内部TestFlight。[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)。Mac DMGは補助経路。外部公開リンクを内部配布入口にしない。
+- 主経路は両方の内部TestFlight。[チームの導入手順](TESTFLIGHT_TEAM.md)、[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)。Mac DMGは補助経路。外部公開リンクを内部配布入口にしない。
 - Slackのマージ・進捗・配布通知に成功記録あり。会話AI自動返信は別接続で未確認。[SLACK](SLACK.md)。

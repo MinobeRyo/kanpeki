@@ -4,7 +4,7 @@
 
 ## アプリを用意する
 
-チームの主経路はMac/iPhoneそれぞれの内部TestFlight。AppleとTestFlightの招待受諾・対象ビルドのインストールが必要。最新mainのマージ通知だけでは更新済みと判断しない。[CD](CD.md)、[Mac](MAC_TESTFLIGHT.md)。
+チームの主経路はMac/iPhoneそれぞれの内部TestFlight。AppleとTestFlightの招待受諾・対象ビルドのインストールが必要。最新mainのマージ通知だけでは更新済みと判断しない。[チームの導入手順](TESTFLIGHT_TEAM.md)、[CD](CD.md)、[Mac](MAC_TESTFLIGHT.md)。
 
 開発時は`Kanpeki.xcworkspace`または`Kanpeki.xcodeproj`を開き、`KanpekiMac` / `KanpekiPhone`を選ぶ。本体はmacOS 14以降/iOS 17以降。実機署名は各自が使える設定をローカルで指定し、共有Bundle ID・配布設定を無断変更しない。カメラ用ローカルSwift Packageを含む。基本スライド操作にクラウドAPIキーは不要。
 
