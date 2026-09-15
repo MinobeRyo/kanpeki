@@ -21,12 +21,12 @@ REPLACEMENTS = {
 }
 PATTERNS = ('.github/workflows/*.yml', '.github/ISSUE_TEMPLATE/*.yml')
 EXACT = ('.codex/config.toml', 'AGENTS.md', '.github/pull_request_template.md', 'scripts/check.sh',
-         'fastlane/Fastfile', 'Gemfile', 'Gemfile.lock', 'docs/MERGE.md',
+         'fastlane/Fastfile', 'Gemfile', 'Gemfile.lock', 'docs/MERGE.md', 'docs/DOCUMENTATION_WORKFLOW.md',
          'docs/CODEX.md', 'docs/AI_TEAM.md', 'assets/design/README.md',
-         'scripts/team.py', 'scripts/merge_preflight.py', 'scripts/prepare_release.py',
+         'scripts/team.py', 'scripts/merge_preflight.py', 'scripts/documentation_check.py', 'scripts/prepare_release.py',
          'scripts/package_mac.py', 'scripts/package_mac_testflight.py',
          'scripts/slack_release.py', 'scripts/slack_progress.py', 'scripts/slack_mac.py',
-         'Tests/test_team.py', 'Tests/test_release.py', 'Tests/test_merge_preflight.py',
+         'Tests/test_team.py', 'Tests/test_release.py', 'Tests/test_merge_preflight.py', 'Tests/test_documentation_check.py',
          'Tests/test_slack_release.py', 'Tests/test_slack_progress.py', 'Tests/test_mac_testflight.py',
          '.agents/skills/kanpeki-team/SKILL.md', '.agents/skills/kanpeki-facilitator/SKILL.md',
          '.agents/skills/kanpeki-native/SKILL.md', '.agents/skills/kanpeki-imagegen/SKILL.md')
