@@ -1,3 +1,4 @@
+import json
 import importlib
 import os
 from pathlib import Path
@@ -116,6 +117,15 @@ class DeliveryTests(unittest.TestCase):
                 os.chdir(folder)
                 m.main(); self.assertEqual(post.call_count,2)
                 m.main(); self.assertEqual(post.call_count,2); update.assert_not_called()
+                statefile=Path('.delivery-state/state.json')
+                state=json.loads(statefile.read_text());state['42/1'].pop('blocks')
+                statefile.write_text(json.dumps(state))
+                m.main(); self.assertEqual(post.call_count,2); update.assert_called_once()
+                actions=update.call_args.args[2]['blocks'][1]['elements']
+                self.assertTrue(any(a['text']['text']=='最新版の開き方' for a in actions))
+                self.assertFalse(any('/join/' in a['url'] for a in actions))
+                update.reset_mock()
+                m.main(); update.assert_not_called()
                 status.return_value=('テスト可能','0.1.0')
                 m.main(); self.assertEqual(post.call_count,2); update.assert_called_once()
         finally:
