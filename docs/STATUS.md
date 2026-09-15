@@ -25,7 +25,7 @@
 | [#58](https://github.com/MinobeRyo/kanpeki/pull/58) `1283343` | 資料MCP実験＋発表全体の音声/カメラ根拠集約・返却・Mac/iPhone振り返り | [push報告](https://github.com/MinobeRyo/kanpeki/issues/33#issuecomment-5674648100)済み。事前資料分析のiPhone適用とは別経路。実ChatGPT新ツール返却・実機・配布は未検証 |
 | [#67](https://github.com/MinobeRyo/kanpeki/pull/67)（2026-09-15再開） | Mac準備カード・確認付き開始・共有復旧・案内保存 #61。main39e2d05の音声/QR/招待IDを保持し警告色を修正。[記録](MAC_UI_IMPLEMENTATION.md) | 旧head97f4e3fはCI成功、再開後headはPRで確認。実PowerPoint/権限/狭幅/操作一巡は未検証。逐次準備・PPTXプレビュー・最大3操作は後続 #77/PR #81 |
 | [#73](https://github.com/MinobeRyo/kanpeki/pull/73) `4af8e58` | 引用・数値・列挙・否定保持 #68 | 合成回帰と実資料品質を区別 |
-| [#81](https://github.com/MinobeRyo/kanpeki/pull/81) | PPTX標準プレビュー・PowerPoint起動・逐次準備UI #77（#67の開始ガードを継承） | 実Macで資料の複数ページ表示・同一PPTXを開く・取消を確認。sandbox Releaseでも実資料表示・4分30秒の確認/適用を確認。共有権限待ち。配布は未確認。[手順](MAC_DOCUMENT_SETUP.md) |
+| [#81](https://github.com/MinobeRyo/kanpeki/pull/81) | PPTX表示・ホーム3入口・接続/分析への直接移動・状態を保持する戻る #77（#67の開始ガードを継承） | 実Macで資料の複数ページ表示・同一PPTXを開く・取消を確認。sandbox Releaseでも実資料表示・4分30秒の確認/適用を確認。共有権限待ち。配布は未確認。[手順](MAC_DOCUMENT_SETUP.md) |
 
 ## 文書から見つかった残件・未確定
 

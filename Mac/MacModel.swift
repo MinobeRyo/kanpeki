@@ -393,7 +393,7 @@ import UniformTypeIdentifiers
         defer { openingDocument = false; if scoped { deck.url.stopAccessingSecurityScopedResource() } }
         do {
             let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = true
+            configuration.activates = false
             _ = try await NSWorkspace.shared.open([deck.url], withApplicationAt: application, configuration: configuration)
             guard documentRevision == revision, state.timer?.sessionID == session, state.timer?.phase == .ready else { return }
             powerPointOpened = true

@@ -10,10 +10,11 @@ import KanpekiAudioHost
     @FocusedValue(\.preparationActions) private var actions
     var body: some Scene {
         WindowGroup("カンペき · Mac") {
-            MacScreen(model: model, capture: model.capture, link: model.link, showScreenReview: $showScreenReview)
+            MacScreen(model: model, capture: model.capture, link: model.link, audio: audio, showScreenReview: $showScreenReview)
         }.defaultSize(width: 1200, height: 800)
             .commands {
                 CommandMenu("準備") {
+                    Button("ホーム") { actions?.home() }
                     Button("共有画面を選ぶ…") { actions?.window() }
                     Button("接続方法を変更…") { actions?.connection() }
                     Button("QRでつなぐ") { actions?.qr() }
@@ -25,6 +26,10 @@ import KanpekiAudioHost
                     Button("接続の詳細") { actions?.details() }
                 }
 
+                CommandMenu("発表") {
+                    Button("一時停止・再開") { actions?.pause() }
+                    Button("発表を終了") { actions?.end() }
+                }
                 CommandGroup(after: .newItem) {
                     Button("資料を選ぶ…") { model.importDeck() }
                     Button("切替記録をJSONで書き出す") { model.exportLog() }.disabled(model.events.isEmpty)
@@ -36,17 +41,16 @@ import KanpekiAudioHost
                     Button("原稿を小さく") { notesSize = max(0, min(2, notesSize) - 1) }.keyboardShortcut("-")
                 }
             }
-        Window("カンペき · 音声分析", id: "audio-analysis") {
-            AudioHostPanel(model: audio).frame(minWidth: 680, minHeight: 620)
-        }.defaultSize(width: 760, height: 780)
     }
 }
 
 struct MacScreen: View {
-    @Environment(\.openWindow) private var openWindow
     @ObservedObject var model: MacModel
     @ObservedObject var capture: WindowCapture
     @ObservedObject var link: PeerLink
+    @ObservedObject var audio: AudioHostModel
+    @State private var navigation = MacNavigation()
+    @State private var showDocument = false
     @Binding var showScreenReview: Bool
     @AppStorage("macNotesSize") private var notesSize = 0
     @State private var showDetails = false
@@ -77,8 +81,15 @@ struct MacScreen: View {
     }
 
     var body: some View {
-        VStack(spacing: 22) {
+        Group {
+            if navigation.current == .audio {
+                AudioHostPanel(model: audio, onBack: { navigation.back() })
+            } else {
+                VStack(spacing: 22) {
             HStack(spacing: 12) {
+                if navigation.current != .home {
+                    Button("戻る", systemImage: "chevron.left") { navigation.back() }
+                }
                 Image("BrandMascot").resizable().scaledToFit().frame(width: 36, height: 36)
                 Text("カンペき").font(.title2.bold())
                 Spacer()
@@ -86,9 +97,17 @@ struct MacScreen: View {
                     PresentationTimerStatus(snapshot: model.state.timer, receivedAt: model.timerReceivedAt, connected: true)
                 }
                 Label(link.connectedName ?? (macOnly ? "Macだけで練習" : "iPhone未接続"), systemImage: "iphone").font(.callout)
-                if !showingDocumentPreview { options }
+                if navigation.current == .presentation && model.state.timer?.phase != .ended && !(presenting && capture.sharing && model.state.frameReady == true) {
+                    options
+                }
             }
-            if model.deck == nil && !screenOnly && !presenting && model.state.timer?.phase != .ended {
+            if navigation.current == .home {
+                home
+            } else if navigation.current == .connection {
+                connection
+            } else if navigation.current == .analysis {
+                analysis
+            } else if model.deck == nil && !screenOnly && !presenting && model.state.timer?.phase != .ended {
                 Spacer()
                 Image("BrandMascot").resizable().scaledToFit().frame(width: 112, height: 112)
                 Text("発表する資料を選びましょう").font(.largeTitle.bold())
@@ -115,12 +134,12 @@ struct MacScreen: View {
                             } else if model.state.timer?.phase == .ended {
                                 Label("発表を終了しました", systemImage:"checkmark.circle").font(.title2)
                             } else if let deck = model.deck {
-                                DocumentPreview(url: deck.url).id(model.documentRevision).padding(12)
+                                DocumentThumbnail(url: deck.url).id(model.documentRevision).padding(12)
                             } else { Label("共有する画面を選びましょう", systemImage: "rectangle.on.rectangle") }
                         }.frame(maxWidth: .infinity, maxHeight: .infinity).frame(minHeight: 280)
                             .clipShape(RoundedRectangle(cornerRadius: 20))
                         if showingDocumentPreview {
-                            Text("資料プレビュー · 発表画面は次の手順で共有します").font(.caption).foregroundStyle(.secondary)
+                            Text("資料の表紙 · 全ページは「準備・機能」→「資料を大きく見る」").font(.caption).foregroundStyle(.secondary)
                         }
                         if presenting && capture.sharing && model.state.frameReady == true {
                             HStack {
@@ -144,17 +163,30 @@ struct MacScreen: View {
                     }
                 }
             }
-        }.padding(28).frame(minWidth: 860, minHeight: 620)
+                }.padding(28)
+            }
+        }.frame(minWidth: 860, minHeight: 620)
             .background(mint).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
-            .background(MacSlideKeyboard(model: model, onNarrowWindow: {}).frame(width: 0, height: 0))
+            .background { if navigation.current == .presentation { MacSlideKeyboard(model: model, onNarrowWindow: {}).frame(width: 0, height: 0) } }
             .task { await capture.refreshWindows(); if !link.running { link.start() } }
+            .onChange(of: navigation.current) { previous, current in
+                if previous == .presentation && current != .presentation && model.presentationStarting { model.cancelPresentationStart() }
+            }
             .onChange(of: model.documentRevision) { _, _ in screenOnly = false }
             .focusedSceneValue(\.preparationActions, MacPreparationActions(
-                window: { selectWindow() },
+                window: { navigation.open(.presentation); selectWindow() },
                 connection: { if !busy { connectionDraft = preparationDraft() } },
                 time: { if !busy, model.state.timer?.phase == .ready, let snapshot = model.state.timer { adjustment = MacTimeDraft(snapshot:snapshot) } },
                 camera: { showCamera = true }, details: { showDetails = true }, qr: { showQR = true },
-                audio: { openWindow(id: "audio-analysis") }, practice: { showPractice = true }))
+                audio: { navigation.open(.audio) }, practice: { showPractice = true }, home: { navigation.home() },
+                pause: { if presenting { model.timerAction(model.state.timer?.phase == .running ? .pause : .resume, duration: nil) } },
+                end: { if presenting { endingSession = model.state.timer?.sessionID } }))
+            .sheet(isPresented: $showDocument) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Button("戻る", systemImage: "chevron.left") { showDocument = false }
+                    if let deck = model.deck { DocumentPreview(url: deck.url).id(model.documentRevision) }
+                }.padding(20).frame(width: 800, height: 580)
+            }
             .sheet(isPresented: $showPractice) { practiceSheet }
             .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
@@ -228,6 +260,74 @@ struct MacScreen: View {
             } message: { Text(model.errorMessage ?? "") }
     }
 
+    private var home: some View {
+        VStack(spacing: 30) {
+            Spacer()
+            Image("BrandMascot").resizable().scaledToFit().frame(width: 90, height: 90)
+            Text("今日は、何から始めますか？").font(.largeTitle.bold())
+            HStack(alignment: .top, spacing: 18) {
+                homeCard(presenting ? "発表に戻る" : "発表準備", icon: "rectangle.on.rectangle",
+                    detail: model.deck?.title ?? "資料を選んで、発表を始める", destination: .presentation)
+                homeCard("iPhone接続", icon: "iphone", detail: link.connectedName.map { "接続済み：\($0)" } ?? "QRでスライド操作をつなぐ", destination: .connection)
+                homeCard("分析・結果", icon: "waveform", detail: audio.receiving ? "録音の受信中・結果を確認" : "録音・カメラ・AIの振り返り", destination: .analysis)
+            }
+            Text("接続と音声分析は、資料を選ぶ前でも使えます。").font(.callout)
+            Spacer()
+        }
+    }
+
+    private func homeCard(_ title: String, icon: String, detail: String, destination: MacDestination) -> some View {
+        Button { navigation.open(destination) } label: {
+            VStack(alignment: .leading, spacing: 18) {
+                Image(systemName: icon).font(.system(size: 30))
+                Text(title).font(.title2.bold())
+                Text(detail).font(.callout).lineLimit(3).frame(minHeight: 52, alignment: .topLeading)
+                Image(systemName: "arrow.right")
+            }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                .background(paper, in: RoundedRectangle(cornerRadius: 22))
+        }.buttonStyle(.plain)
+    }
+
+    private var connection: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Spacer()
+            Label("iPhone接続", systemImage: "iphone").font(.largeTitle.bold())
+            Text(link.connectedName.map { "\($0) とスライド操作を接続済み" } ?? "同じWi-Fiで、スライドとリモコンをつなぎます。")
+            Text(link.status).font(.callout)
+            if link.connectedName != nil {
+                Button("発表準備へ") { navigation.open(.presentation) }.buttonStyle(BrandPrimaryButtonStyle())
+            } else {
+                Button("接続用QRを表示") { showQR = true }.buttonStyle(BrandPrimaryButtonStyle())
+            }
+            Text("音声を送る場合は、音声分析に表示されるURL・コードで別に接続します。").font(.callout)
+            Menu("音声送信・接続の設定") {
+                Button("音声分析のURL・コードを表示") { navigation.open(.audio) }
+                Button("近くのiPhoneからの接続を待つ") { link.start() }
+                Button("接続の詳細") { showDetails = true }
+                Button("Macだけで練習する設定") { connectionDraft = preparationDraft() }
+            }.fixedSize()
+            Spacer()
+        }.padding(32).frame(maxWidth: .infinity, alignment: .leading).background(paper, in: RoundedRectangle(cornerRadius: 24))
+    }
+
+    private var analysis: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Spacer()
+            Label("分析・結果", systemImage: "chart.bar").font(.largeTitle.bold())
+            Text("音声分析では、iPhoneの録音を受け取り、話速・フィラー候補・低音量区間を確認できます。")
+            Text(audio.receiving ? audio.status : "資料やスライド接続がなくても、録音の分析を試せます。").font(.callout)
+            Button("音声分析を開く") { navigation.open(.audio) }.buttonStyle(BrandPrimaryButtonStyle())
+            Menu("カメラ・AI振り返り・その他") {
+                Button("カメラの設定・結果") { showCamera = true }
+                Button("ChatGPTで発表を振り返る") { showPractice = true }
+                Button("切替記録をJSONで書き出す") { model.exportLog() }.disabled(model.events.isEmpty)
+                Button("画面構成の見本") { showScreenReview = true }
+            }.fixedSize()
+            Text("AI振り返りは発表後に依頼します。結果がない項目は未計測として扱います。").font(.caption)
+            Spacer()
+        }.padding(32).frame(maxWidth: .infinity, alignment: .leading).background(paper, in: RoundedRectangle(cornerRadius: 24))
+    }
+
     private func shareCameraEvidence() {
         let cameraID = presentationResult.sessionID == model.state.timer?.sessionID ? presentationResult.cameraID : nil
         let facts = CameraAnalysisEvidence.facts(camera: camera, prefix: "macCamera", associatedCameraID: cameraID)
@@ -258,7 +358,12 @@ struct MacScreen: View {
     }
 
     private var options: some View {
-        Menu {
+        Menu("準備・機能") {
+            Button("ホームに戻る") { navigation.home() }
+            Button("iPhone接続") { navigation.open(.connection) }
+            Button("分析・結果") { navigation.open(.analysis) }
+            if model.deck != nil { Button("資料を大きく見る") { showDocument = true } }
+            Divider()
             if presenting {
                 Button(model.state.timer?.phase == .running ? "一時停止" : "再開") {
                     model.timerAction(model.state.timer?.phase == .running ? .pause : .resume, duration: nil)
@@ -277,7 +382,7 @@ struct MacScreen: View {
             Button("接続方法を変更") { connectionDraft = preparationDraft() }.disabled(busy || model.state.timer?.phase == .ended)
             if link.running && link.connectedName == nil { Button("接続待機を停止") { link.stop() }.disabled(busy) }
             Divider()
-            Button("音声分析") { openWindow(id: "audio-analysis") }
+            Button("音声分析") { navigation.open(.audio) }
             Button("ChatGPTで振り返る") { showPractice = true }
             Button("カメラの設定・結果") { showCamera = true }
             Menu("原稿の文字サイズ") {
@@ -285,8 +390,7 @@ struct MacScreen: View {
             }
             Button("接続の詳細") { showDetails = true }
             Button("画面構成の見本") { showScreenReview = true }
-        } label: { Image(systemName:"ellipsis").frame(width:32,height:28) }
-            .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("その他の操作")
+        }.fixedSize().accessibilityLabel("準備・機能")
     }
 
     private var nextAction: some View {
@@ -320,9 +424,9 @@ struct MacScreen: View {
                     Button(capture.refreshing ? "画面を探しています…" : "共有画面を選ぶ") { selectWindow() }
                         .buttonStyle(BrandPrimaryButtonStyle()).disabled(busy || capture.refreshing)
                 case .connection:
-                    Text(link.running ? "iPhoneの接続を待っています" : "iPhoneを使いますか？").font(.title2.bold())
-                    Text(link.running ? "iPhoneの「Macにつなぐ」から、このMacを選んでください。" : "Macだけでも練習できます。")
-                    Button(link.running ? "接続方法を変更" : "接続方法を選ぶ") { connectionDraft = preparationDraft() }
+                    Text("iPhoneを接続しましょう").font(.title2.bold())
+                    Text("QR接続を開きます。Macだけで練習する場合は「準備・機能」から変更できます。")
+                    Button("iPhone接続へ") { navigation.open(.connection) }
                         .buttonStyle(BrandPrimaryButtonStyle()).disabled(busy)
                 case .time:
                     Text("発表時間を決めましょう").font(.title2.bold())
@@ -384,6 +488,9 @@ private struct MacPreparationActions {
     var qr: () -> Void
     var audio: () -> Void
     var practice: () -> Void
+    var home: () -> Void
+    var pause: () -> Void
+    var end: () -> Void
 }
 private struct MacPreparationActionsKey: FocusedValueKey { typealias Value = MacPreparationActions }
 private extension FocusedValues {
