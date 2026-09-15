@@ -10,6 +10,7 @@
 - 本体が管理するMac接続先・認証情報
 
 `RecorderModel.recordSlideChange(slide:at:)` がiPhone側の統合口。
+本体iPhoneの部分統合では `start(presentationID:)` が任意録音を発表UUIDへ関連付け、`identity.recordingID` がAPI要求・返却結果の照合用録音UUIDとなる。`observePresentation(id:active:)` は終了・切断・別発表で録音と権限待ちを停止する。過去の録音を新発表へ関連付け直さない。録音や送信は自動開始しない。
 単体画面ではスライドを操作しないため、履歴を空配列で送る。ページ送りUIを重複実装しない。
 Mac側でスライドを取得する構成では、解析リクエストへ同じ形式の履歴を付ける。
 

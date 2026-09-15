@@ -25,7 +25,7 @@ struct AudioCaptureView: View {
                         Image(logoName).resizable().scaledToFit().frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 18))
                         VStack(alignment: .leading, spacing: 4) {
                             Text("声から、次の一歩。").font(.title2.bold())
-                            Text(onClose == nil ? "発表の話し方を振り返ろう" : "音声の試験機能・スライド同期は未対応").font(.subheadline)
+                            Text(model.identity.presentationID != nil ? "発表に関連する録音・スライド時刻は未同期" : onClose == nil ? "発表の話し方を振り返ろう" : "音声の試験機能・スライド同期は未対応").font(.subheadline)
                         }
                     }
                     if model.phase == .ready || model.phase == .recorded {

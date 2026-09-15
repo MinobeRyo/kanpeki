@@ -1,5 +1,20 @@
 import Foundation
 
+struct AudioRecordingIdentity: Equatable {
+    private(set) var recordingID: UUID?
+    private(set) var presentationID: UUID?
+    mutating func begin(presentationID: UUID?) {
+        recordingID = UUID()
+        self.presentationID = presentationID
+    }
+    func belongs(to presentationID: UUID?) -> Bool {
+        presentationID != nil && self.presentationID == presentationID && recordingID != nil
+    }
+    static func isCurrentRecorder(_ callback: AnyObject, current: AnyObject?) -> Bool {
+        current === callback
+    }
+}
+
 struct AudioReport: Decodable {
     let duration: Double
     let transcriptionStatus: String
@@ -79,10 +94,19 @@ struct AudioAPI {
         struct Submission: Encodable { let id, audio_base64: String; let slide_events: [SlideEvent] }
         struct Accepted: Decodable { let id: String }
         let body = try JSONEncoder().encode(Submission(id: id.uuidString.lowercased(), audio_base64: audio.base64EncodedString(), slide_events: slides))
-        let _: Accepted = try await send("v1/sessions", method: "POST", body: body)
+        let accepted: Accepted = try await send("v1/sessions", method: "POST", body: body)
+        try Self.validateSessionID(accepted.id, expected: id)
     }
 
     func result(id: UUID) async throws -> AnalysisJob {
-        try await send("v1/sessions/\(id.uuidString.lowercased())")
+        let job: AnalysisJob = try await send("v1/sessions/\(id.uuidString.lowercased())")
+        try Self.validateSessionID(job.id, expected: id)
+        return job
+    }
+
+    static func validateSessionID(_ returned: String, expected: UUID) throws {
+        guard UUID(uuidString: returned) == expected else {
+            throw AudioAPIError.message("別の録音の応答を受信しました。結果は表示せず、同じ録音で再取得してください。")
+        }
     }
 }
