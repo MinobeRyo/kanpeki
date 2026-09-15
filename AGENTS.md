@@ -31,3 +31,9 @@ docs/HANDOFF.mdを成果物の入口、docs/SUBMISSION.mdを会場の提出案�
 Codex活用はdocs/CODEX_EVIDENCE.mdに沿ってIssue／PRへ具体例と実際の検証結果を残す。生成画像を実機画面、準備チェックをアプリCI/CDの成功と表示しない。
 
 移植したアプリの作業では .agents/skills/kanpeki-native/SKILL.md、チーム作業はkanpeki-team、壁打ちはkanpeki-facilitatorを参照。Shared/Models.swiftの変更はMac/iPhone双方を検証する。scripts/team.pyはworktreeごとの進捗管理に使える。
+
+## チームの承認とアプリ配布方針（2026-09-15）
+
+ユーザーはチーム全員が自分の依頼範囲で確認・マージできる運用を承認している。takurateruyoshi、ini-ei、MinobeRyo、mao-sonobeの各担当とそのCodexは、担当の依頼に含まれる通常の修正・テスト・PR・マージを進めてよい。既に許可された操作の再承認を毎回求めない。本人のPRに本人のApproveを付ける必要はない。現在の保護ルールと必要な検証は確認する。
+この方針はCodex本体の管理設定、Appleの署名・契約、アカウント権限を解除するものではない。認証失敗・設定不足は原因と必要な操作を具体的に伝え、既知の許可だけで進められる作業を続ける。
+MacとiPhoneはどちらもネイティブアプリとして提供し、チームの主な確認先は両方のTestFlight。MacのDMGは補助経路。ブラウザ版だけで完成扱いにしない。配布用設定と実機検証が未完なら明示する。
