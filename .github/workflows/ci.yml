@@ -13,6 +13,8 @@ on:
       - "Tests/run_tests.sh"
       - "scripts/check.sh"
       - "Sources/KanpekiCamera/**"
+      - "Sources/KanpekiAudioHost/**"
+      - "AudioHostTests/**"
       - "CameraTests/**"
       - "Package.swift"
       - ".github/workflows/ci.yml"

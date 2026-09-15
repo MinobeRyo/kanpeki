@@ -39,3 +39,5 @@
 音声取得・解析は [AudioCapture](experiments/AudioCapture/README.md) の共有部品を本体iPhoneから利用します。[統合範囲](docs/AUDIO_CAPTURE.md)と[Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12)を参照。メニュー→その他→確認・接続→「音声を試す」は独立試験入口。発表UUIDへの明示録音・終了停止・同発表の音声結果入口はPR #60で部分統合済み。時計・統一結果の統合と実機検証は残件です。
 
 発表終了後は、音声認識結果・カメラ集計値・資料・時間をまとめて既存ChatGPT MCPへ渡し、根拠付きの振り返りをMac/iPhoneで確認できます。使い方・取得条件・未検証範囲は [MCP連携](docs/MCP_INTEGRATION.md) を参照してください。文字起こしはMacで継続し、追加課金APIは使用しません。
+
+Macの音声分析は上部「音声分析」からモデル準備・受信・接続コード表示・結果確認まで行えます。[使い方と検証範囲](docs/MAC_AUDIO.md)。
