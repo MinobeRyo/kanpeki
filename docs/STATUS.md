@@ -44,6 +44,10 @@
 - 主経路は両方の内部TestFlight。[チームの導入手順](TESTFLIGHT_TEAM.md)、[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)。Mac DMGは補助経路。外部公開リンクを内部配布入口にしない。
 - Slackのマージ・進捗・配布通知に成功記録あり。会話AI自動返信は別接続で未確認。[SLACK](SLACK.md)。
 
+## PR #58の統合調整
+
+最新mainのQR接続・簡素化UIを保持し、音声認識結果・カメラ集計・資料・時間のMCP共有と根拠付き振り返りを統合します。iPhoneの振り返りはメニュー→発表→ChatGPTから開きます。[利用手順](MCP_INTEGRATION.md)。事前分析のiPhone適用、実ChatGPT新ツール・実機・配布は別途確認が必要です。
+
 ## 本PRで追加するMac音声分析（2026-09-15）
 
 上記mainスナップショットへの追加差分: [PR #72](https://github.com/MinobeRyo/kanpeki/pull/72)、進捗と未確認事項: [Issue #63](https://github.com/MinobeRyo/kanpeki/issues/63)。[使い方](MAC_AUDIO.md)と[iPhone側の統合範囲](AUDIO_CAPTURE.md)を参照。
