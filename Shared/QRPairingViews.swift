@@ -27,7 +27,7 @@ struct QRPairingSheet: View {
             } else {
                 Text("Wi-FiにつないでQRを表示してください").padding()
             }
-            Button("QRを更新") { addresses = PairingTicket.addresses(); link.showQR() }
+            Button("QRを更新") { addresses = PairingTicket.addresses(); address = addresses.first ?? ""; link.showQR() }
                 .disabled(link.connectedName != nil || link.invitation != nil)
         }.padding(24).frame(width: 420)
             .onAppear { address = addresses.first ?? ""; link.showQR() }
