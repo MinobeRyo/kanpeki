@@ -24,3 +24,11 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/PeerApprovalState.swift" "$project_dir/Tests/PeerApprovalTests.swift" -o "$test_dir/peer-tests"
 "$test_dir/peer-tests"
 echo "Test artifacts: $test_dir"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
+  "$project_dir/Tests/AudioIdentityTests.swift" -o "$test_dir/audio-identity-tests"
+"$test_dir/audio-identity-tests"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/experiments/AudioCapture/ios/KanpekiAudio/AudioAPI.swift" \
+  "$project_dir/Tests/AudioReportValidationTests.swift" -o "$test_dir/audio-report-tests"
+"$test_dir/audio-report-tests"
