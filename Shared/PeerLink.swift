@@ -15,6 +15,14 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     static let service = "kanpeki-v1"
     @Published var status = "未接続"
     @Published var availablePeers: [MCPeerID] = []
+    @Published var incompatiblePeers: [MCPeerID] = []
+    @Published var pairingTicket: PairingTicket?
+    private let direct = DirectPairing()
+    private var directOperation: UUID?
+    private var directApproved = false
+    private var directName: String?
+    private var directHelloReceived = false
+    private var resumeAfterForeground = false
     @Published var connectedName: String? = nil
     @Published private(set) var invitation: PeerInvitation?
     @Published var running = false
@@ -43,6 +51,73 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
         localPeer = MCPeerID(displayName: String(label.prefix(40)))
         super.init()
         renewSession()
+        direct.onTicket = { [weak self] in self?.pairingTicket = $0 }
+        direct.onReady = { [weak self] in
+            guard let self else { return }
+            if !self.isHost { self.direct.send(Data(("hello:" + self.localPeer.displayName).utf8)) }
+        }
+        direct.onData = { [weak self] in self?.receiveDirect($0) }
+        direct.onEnd = { [weak self] message in
+            guard let self else { return }
+            let used = self.directOperation != nil || self.directApproved
+            self.clearDirect()
+            if used { self.connectedName = nil; self.onConnection?(false); self.status = message }
+        }
+    }
+
+    func suspend() { resumeAfterForeground = running; stop() }
+    func resume() { if resumeAfterForeground { resumeAfterForeground = false; start() } }
+    func selectQRAddress(_ address: String) { direct.selectAddress(address) }
+    func showQR() {
+        guard isHost, connectedName == nil, approval.operationID == nil, directOperation == nil else { return }
+        if !running { start() }
+        direct.listen(name: localPeer.displayName)
+    }
+    func connectQR(_ text: String) {
+        guard !isHost else { return }
+        guard let ticket = PairingTicket.parse(text) else { status = "カンペきの有効なQRを読み取ってください"; return }
+        stop(); start()
+        let operation = UUID()
+        directOperation = operation; directName = ticket.name; directHelloReceived = false
+        status = "QRで接続中 · Mac側で許可してください"
+        direct.connect(ticket)
+        expireDirect(operation)
+    }
+    private func expireDirect(_ id: UUID) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 25) { [weak self] in
+            guard let self, self.directOperation == id, !self.directApproved else { return }
+            self.clearDirect(); self.status = "接続できませんでした。QRを更新して再試行してください"
+        }
+    }
+    private func clearDirect() {
+        if invitation?.id == directOperation { invitation = nil }
+        directOperation = nil; directApproved = false; directHelloReceived = false; directName = nil
+        direct.stop(); pendingFrame = nil; lastFrame = 0; sentFrame = 0
+    }
+    private func receiveDirect(_ data: Data) {
+        guard running else { return }
+        if !directApproved {
+            if isHost {
+                guard approval.operationID == nil, connectedName == nil, !directHelloReceived,
+                      data.count <= 200, let text = String(data: data, encoding: .utf8), text.hasPrefix("hello:"), text.count > 6 else { clearDirect(); return }
+                directHelloReceived = true; directOperation = UUID(); directName = String(text.dropFirst(6).prefix(40))
+                invitation = PeerInvitation(id: directOperation!, name: directName!)
+                expireDirect(directOperation!)
+            } else if directOperation != nil && data == Data("accepted".utf8) {
+                directApproved = true; connectedName = directName
+                status = "QRで接続中 · \(directName ?? "Mac")"; onConnection?(true)
+            } else { clearDirect(); status = "Mac側で接続が許可されませんでした" }
+            return
+        }
+        if let frame = WireCodec.readFrame(data), !isHost {
+            send(WireMessage(kind: "frameAck", frameSequence: frame.header.sequence))
+            guard frame.header.sequence > lastFrame else { return }
+            lastFrame = frame.header.sequence; onFrame?(frame)
+        } else if let message = WireCodec.decode(data) {
+            if message.kind == "frameAck", isHost {
+                if message.frameSequence == pendingFrame { pendingFrame = nil }
+            } else { onMessage?(message) }
+        }
     }
 
     /// Each admission gets a new transport object: even a same-peer retry has no old callbacks.
@@ -76,6 +151,7 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
 
     func stop() {
         running = false
+        clearDirect()
         approval.stop()
         rejectPendingInvitation()
         advertiser?.stopAdvertisingPeer()
@@ -83,15 +159,16 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
         advertiser?.delegate = nil; advertiser = nil
         browser?.delegate = nil; browser = nil
         renewSession()
-        availablePeers = []
+        availablePeers = []; incompatiblePeers = []
         connectedName = nil
         status = "停止"
         onConnection?(false)
     }
 
     func invite(_ peer: MCPeerID) {
-        guard running, !isHost, let browser, availablePeers.contains(peer),
+        guard running, !isHost, directOperation == nil, let browser, availablePeers.contains(peer),
               let operation = approval.begin(peer: peer, needsApproval: false) else { return }
+        direct.stop()
         renewSession(peer: peer)
         status = "Mac側で接続を許可してください"
         browser.invitePeer(peer, to: session, withContext: Data("kanpeki-v2".utf8), timeout: 20)
@@ -115,6 +192,14 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     }
 
     func respondToInvitation(accept: Bool, invitationID: UUID) {
+        if let operation = directOperation, operation == invitationID, isHost, running {
+            invitation = nil
+            guard accept else { clearDirect(); status = "接続を見送りました。QRを更新できます"; return }
+            directApproved = true; connectedName = directName
+            direct.send(Data("accepted".utf8))
+            status = "QRで接続中 · \(directName ?? "iPhone")"; onConnection?(true)
+            return
+        }
         guard running, let pending = pendingInvitation, pending.id == invitationID else { return }
         if accept {
             guard approval.approve(operationID: invitationID) else { return }
@@ -136,15 +221,19 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     }
 
     func send(_ message: WireMessage, reliably: Bool = true) {
-        guard let peer = approvedPeer, let data = try? JSONEncoder().encode(message), data.count <= WireCodec.maxMessageBytes else { return }
+        guard let data = try? JSONEncoder().encode(message), data.count <= WireCodec.maxMessageBytes else { return }
+        if directApproved { direct.send(data); return }
+        guard let peer = approvedPeer else { return }
         do { try session.send(data, toPeers: [peer], with: reliably ? .reliable : .unreliable) }
         catch { status = "送信失敗: \(error.localizedDescription)" }
     }
 
     func sendFrame(_ jpeg: Data, identity: SlideFrameIdentity) {
-        guard let peer = approvedPeer, pendingFrame == nil else { return }
+        guard pendingFrame == nil, directApproved || approvedPeer != nil else { return }
         sentFrame &+= 1
         guard let data = WireCodec.frame(jpeg, sequence: sentFrame, identity: identity) else { return }
+        if directApproved { pendingFrame = sentFrame; direct.send(data); return }
+        guard let peer = approvedPeer else { return }
         do {
             try session.send(data, toPeers: [peer], with: .reliable)
             pendingFrame = sentFrame
@@ -215,11 +304,12 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
 
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.running, self.isHost, self.advertiser === advertiser,
+            guard let self, self.running, self.isHost, self.directOperation == nil, self.advertiser === advertiser,
                   context == Data("kanpeki-v2".utf8),
                   let operation = self.approval.begin(peer: peerID, needsApproval: true) else {
                 invitationHandler(false, nil); return
             }
+            self.direct.stop()
             self.renewSession(peer: peerID)
             self.pendingInvitation = (operation, invitationHandler)
             self.invitation = PeerInvitation(id: operation, name: peerID.displayName)
@@ -229,26 +319,32 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
         DispatchQueue.main.async {
             guard self.running, self.advertiser === advertiser else { return }
-            self.stop(); self.status = "接続待機失敗: \(error.localizedDescription)"
+            self.advertiser?.stopAdvertisingPeer(); self.advertiser = nil
+            if self.directOperation == nil { self.status = "近隣検索の待機に失敗しました。QR接続を試してください" }
         }
     }
     func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
-        guard info?["role"] == "mac", info?["version"] == "2" else { return }
+        guard info?["role"] == "mac" else { return }
+        let compatible = info?["version"] == "2"
         DispatchQueue.main.async {
             guard self.running, self.browser === browser else { return }
-            if !self.availablePeers.contains(peerID) { self.availablePeers.append(peerID) }
+            if compatible {
+                if !self.availablePeers.contains(peerID) { self.availablePeers.append(peerID) }
+                self.availablePeers.sort { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+            } else if !self.incompatiblePeers.contains(peerID) { self.incompatiblePeers.append(peerID) }
         }
     }
     func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
         DispatchQueue.main.async {
             guard self.running, self.browser === browser else { return }
-            self.availablePeers.removeAll { $0 == peerID }
+            self.availablePeers.removeAll { $0 == peerID }; self.incompatiblePeers.removeAll { $0 == peerID }
         }
     }
     func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {
         DispatchQueue.main.async {
             guard self.running, self.browser === browser else { return }
-            self.stop(); self.status = "検索失敗: \(error.localizedDescription)"
+            self.browser?.stopBrowsingForPeers(); self.browser = nil
+            if self.directOperation == nil { self.status = "近隣検索に失敗しました。再検索またはQR接続を試してください" }
         }
     }
     func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) { stream.close() }

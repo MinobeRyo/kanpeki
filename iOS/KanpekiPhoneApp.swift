@@ -99,7 +99,8 @@ import Combine
             PhoneScreen(model: model, link: model.link)
                 .onChange(of: phase) { _, value in
                     UIApplication.shared.isIdleTimerDisabled = value == .active
-                    if value == .background { model.stop() }
+                    if value == .background { model.link.suspend() }
+                    if value == .active { model.link.resume() }
                 }
         }
     }
@@ -109,6 +110,7 @@ struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
     @State private var showDetails = false
+    @State private var showQRScanner = false
     @State private var showAudioTrial = false
     @StateObject private var audioRecorder = RecorderModel()
     @State private var showScreenReview = false
@@ -151,12 +153,14 @@ struct PhoneScreen: View {
                             Button(link.running ? "もう一度探す" : "近くのMacを探す") {
                                 model.stop(); link.start()
                             }.buttonStyle(BrandPrimaryButtonStyle()).controlSize(.large)
+                            Button("QRでつなぐ", systemImage: "qrcode.viewfinder") { showQRScanner = true }.buttonStyle(.bordered)
                             ForEach(link.availablePeers, id: \.self) { peer in
                                 Button { link.invite(peer) } label: {
                                     Label(peer.displayName, systemImage: "desktopcomputer")
                                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                 }.buttonStyle(.bordered)
                             }
+                            if !link.incompatiblePeers.isEmpty { Text("別の通信版のMacが見つかりました。両方のTestFlightを更新してください").font(.caption) }
                             Button("画面構成を試す") { showScreenReview = true }.buttonStyle(.bordered)
                             Button("音声を試す") { showAudioTrial = true }
                                 .buttonStyle(.bordered)
@@ -200,7 +204,9 @@ struct PhoneScreen: View {
             }.padding(16).background(mint.ignoresSafeArea())
                 .foregroundStyle(ink)
                 .toolbar(.hidden, for: .navigationBar)
-                .sheet(isPresented: $showDetails, onDismiss: {
+                .task { if !link.running { link.start() } }
+            .sheet(isPresented: $showQRScanner) { QRScannerSheet { link.connectQR($0) } }
+            .sheet(isPresented: $showDetails, onDismiss: {
                     if reviewAfterDetails {
                         reviewAfterDetails = false
                         showScreenReview = true

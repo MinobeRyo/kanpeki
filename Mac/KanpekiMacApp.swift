@@ -16,6 +16,7 @@ struct MacScreen: View {
     @State private var showAllWindows = false
     @State private var showGuide = true
     @State private var showDetails = false
+    @State private var showQR = false
     @State private var showScreenReview = false
     @StateObject private var camera = CameraController()
     @State private var presentationResult = PresentationResultAssociation()
@@ -33,6 +34,7 @@ struct MacScreen: View {
                 Spacer()
                 Label(link.connectedName == nil ? "iPhone未接続" : "iPhone接続済み", systemImage: "iphone")
                     .font(.callout)
+                Button("QRでつなぐ", systemImage: "qrcode") { showQR = true }.disabled(link.connectedName != nil)
                 Button("画面構成を試す") { showScreenReview = true }
                 Button { showDetails = true } label: { Image(systemName: "ellipsis").frame(width: 36, height: 36) }
                     .accessibilityLabel("接続の詳細と記録")
@@ -83,6 +85,7 @@ struct MacScreen: View {
             }
         }.padding(24).frame(minWidth: 980, minHeight: 720)
             .background(mint).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
+            .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
                 VStack {

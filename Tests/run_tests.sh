@@ -24,3 +24,6 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/PeerApprovalState.swift" "$project_dir/Tests/PeerApprovalTests.swift" -o "$test_dir/peer-tests"
 "$test_dir/peer-tests"
 echo "Test artifacts: $test_dir"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/DirectPairing.swift" "$project_dir/Tests/PairingTicketTests.swift" -o "$test_dir/pairing-tests"
+"$test_dir/pairing-tests"
