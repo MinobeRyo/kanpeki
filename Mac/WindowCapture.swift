@@ -14,7 +14,7 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     @Published var windows: [CaptureWindow] = []
     @Published var image: NSImage?
     @Published var sharing = false
-    @Published private(set) var needsScreenPermission = !CGPreflightScreenCaptureAccess()
+    @Published private(set) var needsScreenPermission: Bool
     @Published private(set) var refreshing = false
     @Published var message = "画面収録を許可して共有画面を選んでください"
     var onJPEG: ((Data) -> Void)?
@@ -29,29 +29,50 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     private var lastTime: TimeInterval = 0
     private var cachedJPEG: Data?
 
+    private let preflightAccess: () -> Bool
+    private let shareableWindows: () async throws -> [SCWindow]
+
+    init(preflightAccess: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
+         shareableWindows: @escaping () async throws -> [SCWindow] = {
+             try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false).windows
+         }) {
+        self.preflightAccess = preflightAccess
+        self.shareableWindows = shareableWindows
+        self.needsScreenPermission = !preflightAccess()
+        super.init()
+    }
+
     @MainActor func refreshWindows(requestPermission: Bool = false) async {
         guard !refreshing else { return }
-        needsScreenPermission = !CGPreflightScreenCaptureAccess()
-        if needsScreenPermission {
-            guard requestPermission else { return }
-            _ = CGRequestScreenCaptureAccess()
-            needsScreenPermission = !CGPreflightScreenCaptureAccess()
-            guard !needsScreenPermission else {
-                message = "画面収録の許可が必要です。システム設定で許可した後、再読み込みしてください。"
-                return
-            }
+        // Preflight is only a non-interactive launch guard. A false result must
+        // not prevent the user's explicit action from reaching ScreenCaptureKit.
+        if !requestPermission && !preflightAccess() {
+            needsScreenPermission = true
+            return
         }
         refreshing = true
         defer { refreshing = false }
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
-            windows = content.windows.filter {
+            let available = try await shareableWindows()
+            needsScreenPermission = false
+            windows = available.filter {
                 $0.owningApplication?.processID != ProcessInfo.processInfo.processIdentifier && $0.windowLayer == 0 && $0.frame.width > 160 && $0.frame.height > 100
             }.map(CaptureWindow.init).sorted { $0.label < $1.label }
             message = windows.isEmpty ? "共有できるウィンドウがありません。スライドショーを開いてください" : "発表用スライドのウィンドウを選んでください（ノート表示画面に注意）"
         } catch {
-            needsScreenPermission = !CGPreflightScreenCaptureAccess()
-            message = "画面取得に失敗しました。画面収録の許可を確認してください: \(error.localizedDescription)"
+            windows = []
+            reportCaptureError(error, action: "画面を取得できません")
+        }
+    }
+
+    @MainActor private func reportCaptureError(_ error: Error, action: String) {
+        let failure = error as NSError
+        needsScreenPermission = failure.domain == SCStreamErrorDomain
+            && failure.code == SCStreamError.Code.userDeclined.rawValue
+        if needsScreenPermission {
+            message = "画面収録を許可してください。設定がオンなら、カンペきを⌘Qで終了して開き直してください。"
+        } else {
+            message = "\(action): \(error.localizedDescription)"
         }
     }
 
@@ -84,6 +105,7 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
                 try? await stream.stopCapture()
                 return
             }
+            needsScreenPermission = false
             sharing = true
             snapshotFilter = filter
             snapshotConfiguration = config
@@ -91,8 +113,7 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
         } catch {
             guard lifecycleID == attempt else { return }
             _ = clearStreamState()
-            needsScreenPermission = !CGPreflightScreenCaptureAccess()
-            message = "共有を開始できません: \(error.localizedDescription)"
+            reportCaptureError(error, action: "共有を開始できません")
         }
     }
 

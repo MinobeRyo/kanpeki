@@ -55,3 +55,10 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
 xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/PreparationNotes.swift" "$project_dir/Tests/PreparationNotesTests.swift" -o "$test_dir/preparation-notes-tests"
 "$test_dir/preparation-notes-tests"
+
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/Models.swift" "$project_dir/Shared/PracticeAnalysis.swift" \
+  "$project_dir/Shared/PresentationTimer.swift" "$project_dir/Shared/SlidePointer.swift" "$project_dir/Shared/SlideFrame.swift" \
+  "$project_dir/Mac/WindowCapture.swift" "$project_dir/Tests/ScreenPermissionTests.swift" \
+  -o "$test_dir/screen-permission-tests"
+"$test_dir/screen-permission-tests"
