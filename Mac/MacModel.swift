@@ -12,6 +12,9 @@ import UniformTypeIdentifiers
     @Published var monitoring = false
     @Published var errorMessage: String?
     @Published var events: [SlideObservation] = []
+    @Published private(set) var timerReceivedAt: TimeInterval?
+    @Published private(set) var timerFinishing = false
+    private var presentationTimer = PresentationTimerAuthority()
     private let bridge: PresentationControlling = PowerPointBridge()
     private var timer: Timer?
     private var sessionID = UUID()
@@ -47,21 +50,28 @@ import UniformTypeIdentifiers
         link.onMessage = { [weak self] message in
             if message.kind == "pointer", let self, let update = message.pointer,
                self.pointerReceiver.accept(update, sessionID: self.state.pointerSessionID) {
-                if let point = update.point, self.capture.sharing, self.state.canControl,
+                if let point = update.point, self.capture.sharing, self.state.canControl, self.state.allowsSlideInteraction,
                    self.link.connectedName != nil, let windowID = self.sharedWindow?.id {
                     self.pointerOverlay.show(point, windowID: windowID)
                 } else { self.pointerOverlay.clear() }
                 return
             }
-            guard let self, message.kind == "control", let action = message.action, self.requests.accept(message.requestID) else { return }
+            guard let self, self.requests.accept(message.requestID) else { return }
+            if message.kind == "timerControl", let command = message.timerCommand {
+                self.applyTimer(command)
+                return
+            }
+            guard message.kind == "control", let action = message.action else { return }
             if action == .refresh { self.publishState() } else { self.move(action) }
         }
         heartbeat = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.publishState() }
         }
+        publishState()
     }
 
     func startSharing() async {
+        guard !timerFinishing else { return }
         guard let window = capture.windows.first(where: { $0.id == selectedWindowID }) else { return }
         disableControl()
         latestJPEG = nil
@@ -147,7 +157,7 @@ import UniformTypeIdentifiers
     }
 
     func move(_ action: RemoteAction) {
-        guard state.canControl, monitoring, capture.sharing else { return }
+        guard state.canControl, state.allowsSlideInteraction, monitoring, capture.sharing else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastMoveAt > 0.25 else { return }
         lastMoveAt = now
@@ -212,5 +222,32 @@ import UniformTypeIdentifiers
         state.pointerSessionID = UUID()
     }
 
-    private func publishState() { link.send(WireMessage(kind: "state", state: state)) }
+    func timerAction(_ action: PresentationTimerAction, duration: Double?) {
+        let snapshot = presentationTimer.snapshot(at: TimerClock.now)
+        applyTimer(PresentationTimerCommand(sessionID: snapshot.sessionID, revision: snapshot.revision,
+            sequence: snapshot.sequence, action: action, durationSeconds: duration))
+    }
+
+    private func applyTimer(_ command: PresentationTimerCommand) {
+        guard !timerFinishing else { publishState(); return }
+        guard command.action != .start || capture.sharing else { publishState(); return }
+        let applied = presentationTimer.apply(command, at: TimerClock.now)
+        if applied && command.action == .end { timerFinishing = true }
+        publishState()
+        if applied && command.action == .end {
+            Task {
+                await stopSharing()
+                timerFinishing = false
+                publishState()
+            }
+        }
+    }
+
+    private func publishState() {
+        let now = TimerClock.now
+        state.timer = presentationTimer.snapshot(at: now)
+        state.timer?.isFinishing = timerFinishing
+        timerReceivedAt = now
+        link.send(WireMessage(kind: "state", state: state))
+    }
 }

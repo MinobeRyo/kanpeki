@@ -64,6 +64,11 @@ struct MacScreen: View {
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(5)
                     }
                     VStack(alignment: .leading, spacing: 9) {
+                        GroupBox("発表時間") {
+                            PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
+                                connected: true, canStart: capture.sharing,
+                                send: { model.timerAction($0, duration: $1) })
+                        }
                         Button { showCamera = true } label: { Label("カメラ分析", systemImage: "video") }
                         if camera.phase == .running {
                             Text("\(camera.subject.title) · \(camera.summary.currentQuality)").font(.caption)
@@ -87,6 +92,7 @@ struct MacScreen: View {
                     Spacer()
                     Label(capture.sharing ? "共有中" : "未共有", systemImage: capture.sharing ? "dot.radiowaves.left.and.right" : "circle")
                         .font(.caption.bold()).foregroundStyle(capture.sharing ? accent : .secondary)
+                    PresentationTimerStatus(snapshot: model.state.timer, receivedAt: model.timerReceivedAt, connected: true)
                 }
                 ZStack {
                     RoundedRectangle(cornerRadius: 16).fill(Color(red: 249/255, green: 255/255, blue: 230/255))
@@ -129,6 +135,9 @@ struct MacScreen: View {
             }.frame(width: 560, height: 650)
         }
         .onDisappear { camera.stop() }
+        .onChange(of: model.state.timer?.phase) { _, phase in
+            if phase == .ended { camera.stop() }
+        }
         .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitationName != nil }, set: { if !$0 { link.respondToInvitation(accept: false) } })) {
             Button("許可") { link.respondToInvitation(accept: true) }
             Button("拒否", role: .cancel) { link.respondToInvitation(accept: false) }

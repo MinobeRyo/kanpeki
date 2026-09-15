@@ -8,6 +8,8 @@ on:
       - "Config/**"
       - "Kanpeki.xcodeproj/**"
       - "Tests/CoreTests.swift"
+      - "Tests/TimerTests.swift"
+      - "Tests/run_tests.sh"
       - "scripts/check.sh"
       - "Sources/KanpekiCamera/**"
       - "CameraTests/**"
