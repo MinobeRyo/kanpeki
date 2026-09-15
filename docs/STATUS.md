@@ -27,7 +27,13 @@
 | [#73](https://github.com/MinobeRyo/kanpeki/pull/73) `4af8e58` | 引用・数値・列挙・否定保持 #68 | 合成回帰と実資料品質を区別 |
 | [#81](https://github.com/MinobeRyo/kanpeki/pull/81) | PPTX表示・ホーム3入口・接続/分析への直接移動・状態を保持する戻る #77（#67の開始ガードを継承） | 実Macで資料の複数ページ表示・同一PPTXを開く・取消を確認。sandbox Releaseでも実資料表示・4分30秒の確認/適用を確認。共有権限待ち。配布は未確認。[手順](MAC_DOCUMENT_SETUP.md) |
 
+## 2026-09-15追記：AI改善提案の仕様整理
+
+main `66588fe`でPR #58のMCP連携が統合されたことを確認した。上の未マージPR表は冒頭の確認時点の履歴。今回の文書追加でアプリの実装・実機検証・配布が進んだとは扱わない。
+
 ## 文書から見つかった残件・未確定
+
+- AI改善提案の製品方針・利用情報・具体例・実装順を[AI_COACHING](../specs/AI_COACHING.md)に整理（[Issue #82](https://github.com/MinobeRyo/kanpeki/issues/82)）。文書化の追加であり、コードの実装状態は変更なし。PR #58の根拠付き返却を土台に、修正案/次回確認の構造化、優先1件表示、時計同期、履歴比較を後続の設計・実装課題として区別する。
 
 - ASSISTANCE_FLOW A01〜A06：翻訳の原文比較、個別採用/修正/戻す、モデル準備同意/取消は本体未接続。#15/#34と後続MCP方針の整理が必要。ローカル専用案とChatGPTへの明示共有は別経路で、勝手なクラウドfallbackを認めない。
 - B01〜B05：単一主マイク/カメラの端末間調停、言語選択、フィラー誤検出の利用者訂正は未接続。#12/#14/#40の受入項目の明文化を確認する必要がある。現在iPhone音声開始はカメラを停止し、同時計測できると見せない。
@@ -56,3 +62,11 @@
 - Macメニューバー「準備」→「音声分析」から、モデル準備、録音受信、接続URL/コード、Whisper baseによるローカル分析、結果表示を実装。PythonやHomebrewの別起動は不要。
 - 合成日本語WAVの受信・実推論・結果返却とiPhoneデコーダーの互換、ローカルRelease sandboxビルドを確認。画面はNSHostingView描画で確認。
 - 実ウィンドウ操作、実iPhone録音、会場での精度は未確認。main統合・最終CI・TestFlightの現在値は上記PR/Issueを確認する。リアルタイム分析・共通時計・スライド履歴の自動同期は未対応。
+
+## #82：AI改善提案の初期実装（この変更の範囲）
+
+- schema 2の対象根拠/修正/次回確認、同一録音の区間候補、実測−設定時間の差、Mac/iPhoneの優先1件表示を追加。仕様は[AI_COACHING](../specs/AI_COACHING.md)、更新方法は[MCP_INTEGRATION](MCP_INTEGRATION.md)。main統合・検証結果は[Issue #82](https://github.com/MinobeRyo/kanpeki/issues/82)と実装PRを参照。
+- 旧schema 1の結果は互換維持。未取得情報や別時計を結び付けず、改善なしの限界のみの返却も許可する。
+- 共通R01の統合、正確なページ別同期、履歴比較、原稿の自動反映、実ChatGPT品質・実機・配布は今回の完了に含めない。上記の文書化時点の残件一覧から、この変更分だけを進めたもの。
+
+#82のローカル確認：MCP65テスト、Swift88チェック、既存core、実SDKとの往復、Mac/iPhone署名なしビルドが成功。合成UI6パターンの描画も確認。[PR #91](https://github.com/MinobeRyo/kanpeki/pull/91)の統合状態とCIは別に確認する。実機・実ChatGPT品質・配布は未検証。

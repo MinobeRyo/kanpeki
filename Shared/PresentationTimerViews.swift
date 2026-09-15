@@ -294,25 +294,77 @@ struct TimeAdjustmentFlow: View {
 
 struct PracticeFeedbackView: View {
     let result: PracticeAnalysisResult?
+
     var body: some View {
-        if let result {
-            DisclosureGroup("ChatGPTの振り返り") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("計測結果に基づくAIの提案です。根拠を確認して採用してください。").font(.caption)
-                    ForEach(Array(result.items.enumerated()), id: \.offset) { _, item in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(item.kind == "strength" ? "よかった点" : item.kind == "improvement" ? "次に試すこと" : "確認できないこと").font(.caption.bold())
-                            Text(item.text).textSelection(.enabled)
+        if let result, let primaryIndex = result.firstImprovementIndex ?? result.items.indices.first {
+            let remainingIndices = result.remainingFeedbackIndices.filter { $0 != primaryIndex }
+            VStack(alignment: .leading, spacing: 12) {
+                Text("ChatGPTの振り返り")
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                feedbackCard(result.items[primaryIndex])
+                DisclosureGroup(remainingIndices.isEmpty ? "根拠を確認" : "根拠・ほかの提案") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("計測結果に基づくAIの提案です。根拠を確認して採用してください。")
+                            .font(.caption)
+                        evidenceDetails(result.items[primaryIndex])
+                        ForEach(remainingIndices, id: \.self) { index in
+                            Divider()
+                            feedbackCard(result.items[index])
                             DisclosureGroup("根拠") {
-                                ForEach(Array((item.sources ?? item.evidenceIDs).enumerated()), id: \.offset) { _, source in
-                                    Text(source).font(.caption).textSelection(.enabled)
-                                }
+                                evidenceDetails(result.items[index])
                             }
                         }
                     }
-                }.padding(.vertical, 8)
+                    .padding(.vertical, 8)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
+            .id(result.requestID)
+        }
+    }
+
+    private func feedbackCard(_ item: PracticeAnalysisItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(item.kind == "strength" ? "よかった点" : item.kind == "improvement" ? "次に試すこと" : "確認できないこと")
+                .font(.subheadline.bold())
+                .accessibilityAddTraits(.isHeader)
+            Text(item.text)
+            if let coaching = item.coaching {
+                coachingStep("修正案", text: coaching.change)
+                coachingStep("次の練習", text: coaching.rehearsal)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func coachingStep(_ title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.bold())
+                .accessibilityAddTraits(.isHeader)
+            Text(text)
+        }
+    }
+
+    private func evidenceDetails(_ item: PracticeAnalysisItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(item.evidenceIDs.enumerated()), id: \.offset) { index, evidenceID in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(evidenceID == item.coaching?.targetEvidenceID ? "対象の根拠" : "根拠 \(index + 1)")
+                        .font(.caption.bold())
+                        .accessibilityAddTraits(.isHeader)
+                    if let sources = item.sources, sources.indices.contains(index),
+                       !sources[index].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(sources[index]).font(.caption)
+                    } else {
+                        Text("根拠ID: \(evidenceID)").font(.caption)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
