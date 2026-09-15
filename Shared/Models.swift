@@ -12,6 +12,7 @@ struct PresentationState: Codable, Equatable {
     var canControl = false
     var isSharing = false
     var message = "Macで共有するウィンドウを選択してください"
+    var timer: PresentationTimerSnapshot? = nil
 }
 
 struct WireMessage: Codable {
@@ -21,6 +22,7 @@ struct WireMessage: Codable {
     var action: RemoteAction? = nil
     var state: PresentationState? = nil
     var frameSequence: UInt64? = nil
+    var timerCommand: PresentationTimerCommand? = nil
 }
 
 enum WireCodec {
@@ -29,7 +31,8 @@ enum WireCodec {
     static func decode(_ data: Data) -> WireMessage? {
         guard data.count <= maxMessageBytes,
               let value = try? JSONDecoder().decode(WireMessage.self, from: data),
-              value.version == 1, ["control", "state", "frameAck"].contains(value.kind) else { return nil }
+              value.version == 1, ["control", "state", "frameAck", "timerControl"].contains(value.kind),
+              value.state?.timer?.isValid != false else { return nil }
         return value
     }
     static func frame(_ jpeg: Data, sequence: UInt64) -> Data? {

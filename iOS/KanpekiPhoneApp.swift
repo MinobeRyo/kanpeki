@@ -10,6 +10,8 @@ import Combine
     @Published var lastFrameDate: Date?
     @Published var lastStateDate: Date?
     @Published var lastTapDate = Date.distantPast
+    @Published private(set) var timerReceivedAt: TimeInterval?
+    private var timerReceiver = PresentationTimerReceiver()
 
     init() {
         link.onFrame = { [weak self] data in
@@ -19,7 +21,9 @@ import Combine
         }
         link.onMessage = { [weak self] message in
             guard message.kind == "state", let state = message.state, let self else { return }
+            guard self.timerReceiver.accept(state.timer) else { return }
             self.state = state
+            self.timerReceivedAt = state.timer == nil ? nil : TimerClock.now
             self.lastStateDate = Date()
             if !state.isSharing { self.image = nil; self.lastFrameDate = nil }
         }
@@ -28,6 +32,8 @@ import Combine
             self.image = nil
             self.lastFrameDate = nil
             self.lastStateDate = nil
+            self.timerReceivedAt = nil
+            self.timerReceiver = PresentationTimerReceiver()
             self.state = PresentationState()
             if connected { self.link.send(WireMessage(kind: "control", action: .refresh)) }
         }
@@ -45,7 +51,17 @@ import Combine
         image = nil
         lastFrameDate = nil
         lastStateDate = nil
+        timerReceivedAt = nil
+        timerReceiver = PresentationTimerReceiver()
         state = PresentationState()
+    }
+
+    func timerAction(_ action: PresentationTimerAction, duration: Double?) {
+        guard link.connectedName != nil, let snapshot = state.timer, let timerReceivedAt,
+              TimerClock.now - timerReceivedAt < 3, snapshot.isFinishing != true else { return }
+        let command = PresentationTimerCommand(sessionID: snapshot.sessionID, revision: snapshot.revision,
+            sequence: snapshot.sequence, action: action, durationSeconds: duration)
+        link.send(WireMessage(kind: "timerControl", timerCommand: command))
     }
 }
 
@@ -83,6 +99,7 @@ struct PhoneScreen: View {
                     Image("BrandMascot").resizable().scaledToFit().frame(width: 42, height: 42)
                     Text("カンペき").font(.title2.bold())
                     Spacer()
+                    PresentationTimerStatus(snapshot: model.state.timer, receivedAt: model.timerReceivedAt, connected: link.connectedName != nil)
                     Button { showDetails = true } label: {
                         Image(systemName: "ellipsis").frame(width: 44, height: 44)
                     }.accessibilityLabel("接続と操作の詳細")
@@ -152,6 +169,11 @@ struct PhoneScreen: View {
                                 Button("カメラの設定・結果") { showCamera = true }
                                 if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)") }
                             }
+                            Section("発表時間") {
+                                PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
+                                    connected: link.connectedName != nil, canStart: model.state.isSharing,
+                                    send: { model.timerAction($0, duration: $1) })
+                            }
                             Section("接続") { Text(link.status); Text(model.state.message); Text(model.state.notesStatus) }
                             if link.connectedName != nil {
                                 Button("Macとの接続を切る", role: .destructive) { model.stop(); showDetails = false }
@@ -173,6 +195,9 @@ struct PhoneScreen: View {
             }
         }
         .onDisappear { camera.stop() }
+        .onChange(of: model.state.timer?.phase) { _, phase in
+            if phase == .ended { camera.stop() }
+        }
     }
 
     private func turn(_ action: RemoteAction, fresh: Bool) {
