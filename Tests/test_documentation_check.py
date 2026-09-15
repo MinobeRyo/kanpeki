@@ -47,8 +47,22 @@ class DocumentationTests(unittest.TestCase):
         self.assertTrue(m.validate_documentation(self.body('none') + '\nDocs-Reason: 別の説明をここにも書いてある。', []))
 
     def test_examples_and_comments_are_not_declarations(self):
-        for body in ['<!--\n' + self.body('none') + '\n-->', '```text\n' + self.body('none') + '\n```']:
+        for body in ['<!--\n' + self.body('none') + '\n-->'] + [
+            opening + '\n' + self.body('none') + '\n' + closing
+            for opening, closing in [('```text', '```'), ('~~~text', '~~~'), ('````text', '````'), ('   ~~~~~text', '   ~~~~~~')]
+        ]:
             self.assertTrue(m.validate_documentation(body, []))
+
+    def test_declaration_and_fenced_examples(self):
+        body = self.body('none') + '\n````text\n```\n' + self.body() + '\n```\n````'
+        self.assertEqual(m.validate_documentation(body, []), [])
+
+    def test_unclosed_fence_is_not_declaration(self):
+        self.assertTrue(m.validate_documentation('~~~\n' + self.body('none'), []))
+
+    def test_comparison_symbol_in_real_reason(self):
+        body = 'Docs-Impact: updated\nDocs-Reason: specs/LIMITS.mdの待ち時間 < 100ms の判定条件を実装に合わせました。'
+        self.assertEqual(m.validate_documentation(body, [{'filename': 'specs/LIMITS.md'}]), [])
 
     def test_nested_and_root_document_paths(self):
         for path in ['AGENTS.md', 'apps/SlidePacer/README.md', 'specs/PRODUCT.md', 'integrations/mcp/README.md']:

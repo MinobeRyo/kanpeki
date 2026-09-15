@@ -22,14 +22,27 @@ def validate_documentation(body, files):
     """files: GitHub-style filename/status records, including deletions and renames."""
     # Template instructions and quoted examples are not declarations.
     body = re.sub(r'<!--.*?-->', '', body or '', flags=re.S)
-    body = re.sub(r'^```[^\n]*\n.*?^```\s*$', '', body, flags=re.M | re.S)
+    visible = []
+    fence = None
+    for line in body.splitlines():
+        if fence:
+            if re.fullmatch(r' {0,3}' + re.escape(fence[0]) + '{' + str(len(fence)) + r',}[ \t]*', line):
+                fence = None
+            continue
+        opening = re.match(r' {0,3}(`{3,}|~{3,})(.*)$', line)
+        if opening and not (opening[1][0] == '`' and '`' in opening[2]):
+            fence = opening[1]
+            continue
+        visible.append(line)
+    body = '\n'.join(visible)
     impacts = re.findall(r'^Docs-Impact:\s*(\S+)\s*$', body, flags=re.M)
     reasons = re.findall(r'^Docs-Reason:[ \t]*(.+)$', body, flags=re.M)
     errors = []
     if len(impacts) != 1 or impacts[0] not in {'updated', 'none'}:
         errors.append('Declare exactly one Docs-Impact: updated or Docs-Impact: none.')
     if (len(reasons) != 1 or len(reasons[0].strip()) < 12 or
-            reasons[0].strip().lower() in {'todo', 'tbd'} or '<' in reasons[0] or '記入してください' in reasons[0]):
+            reasons[0].strip().lower() in {'todo', 'tbd'} or
+            re.fullmatch(r'<[^<>]+>', reasons[0].strip()) or '記入してください' in reasons[0]):
         errors.append('Docs-Reason needs a concrete explanation (at least 12 characters), not a placeholder.')
     changed_docs = sorted({f['filename'] for f in files
                            if f.get('status') != 'removed' and living_document(f['filename'])})
