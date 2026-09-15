@@ -27,6 +27,8 @@
 | [#72](https://github.com/MinobeRyo/kanpeki/pull/72) `da9e3c8` | Mac内Whisper/受信/接続コード #63 | mainのPython手順をまだ置換しない。実端末・framework署名/配布確認はPR参照 |
 | [#73](https://github.com/MinobeRyo/kanpeki/pull/73) `4af8e58` | 引用・数値・列挙・否定保持 #68 | 合成回帰と実資料品質を区別 |
 
+| [#81](https://github.com/MinobeRyo/kanpeki/pull/81) | PPTX標準プレビュー・PowerPoint起動・逐次準備UI #77（#67の開始ガードを継承） | 実Macで資料の複数ページ表示・同一PPTXを開く・取消を確認。共有権限待ち。配布は未確認。[手順](MAC_DOCUMENT_SETUP.md) |
+
 ## 文書から見つかった残件・未確定
 
 - ASSISTANCE_FLOW A01〜A06：翻訳の原文比較、個別採用/修正/戻す、モデル準備同意/取消は本体未接続。#15/#34と後続MCP方針の整理が必要。ローカル専用案とChatGPTへの明示共有は別経路で、勝手なクラウドfallbackを認めない。
