@@ -2,6 +2,7 @@ import AppKit
 import ScreenCaptureKit
 import CoreImage
 import Combine
+import OSLog
 
 struct CaptureWindow: Identifiable {
     let window: SCWindow
@@ -29,6 +30,8 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     private var lastTime: TimeInterval = 0
     private var cachedJPEG: Data?
 
+    private let logger = Logger(subsystem: "jp.kanpeki.prototype.mac", category: "WindowCapture")
+
     private let preflightAccess: () -> Bool
     private let shareableWindows: () async throws -> [SCWindow]
 
@@ -55,9 +58,7 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
         do {
             let available = try await shareableWindows()
             needsScreenPermission = false
-            windows = available.filter {
-                $0.owningApplication?.processID != ProcessInfo.processInfo.processIdentifier && $0.windowLayer == 0 && $0.frame.width > 160 && $0.frame.height > 100
-            }.map(CaptureWindow.init).sorted { $0.label < $1.label }
+            updateWindows(available)
             message = windows.isEmpty ? "共有できるウィンドウがありません。スライドショーを開いてください" : "発表用スライドのウィンドウを選んでください（ノート表示画面に注意）"
         } catch {
             windows = []
@@ -65,14 +66,22 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
         }
     }
 
+    @MainActor private func updateWindows(_ available: [SCWindow]) {
+        windows = available.filter {
+            $0.owningApplication?.processID != ProcessInfo.processInfo.processIdentifier
+                && $0.windowLayer == 0 && $0.frame.width > 160 && $0.frame.height > 100
+        }.map(CaptureWindow.init).sorted { $0.label < $1.label }
+    }
+
     @MainActor private func reportCaptureError(_ error: Error, action: String) {
         let failure = error as NSError
+        logger.error("Capture failed: \(failure.domain, privacy: .public) code=\(failure.code) reason=\(failure.localizedFailureReason ?? "unknown", privacy: .public)")
         needsScreenPermission = failure.domain == SCStreamErrorDomain
             && failure.code == SCStreamError.Code.userDeclined.rawValue
         if needsScreenPermission {
             message = "画面収録を許可してください。設定がオンなら、カンペきを⌘Qで終了して開き直してください。"
         } else {
-            message = "\(action): \(error.localizedDescription)"
+            message = "\(action): \(error.localizedDescription)（\(failure.domain) / \(failure.code)）"
         }
     }
 
@@ -82,14 +91,41 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
     }
 
     @MainActor func start(window: CaptureWindow) async {
+        await start(windowID: window.id, processID: window.window.owningApplication?.processID)
+    }
+
+    @MainActor func start(windowID: CGWindowID, processID: pid_t?) async {
         let attempt = UUID()
         lifecycleID = attempt
         if let previous = clearStreamState() { try? await previous.stopCapture() }
         guard lifecycleID == attempt else { return }
         queue.sync { cachedJPEG = nil; lastTime = 0 }
-        let filter = SCContentFilter(desktopIndependentWindow: window.window)
+        // PowerPoint replaces windows when entering/leaving a slide show. Never
+        // send the cached SCWindow to WindowServer or silently choose a new one.
+        let current: SCWindow
+        do {
+            let available = try await shareableWindows()
+            guard lifecycleID == attempt else { return }
+            updateWindows(available)
+            needsScreenPermission = false
+            guard let owner = processID,
+                  let selected = windows.first(where: {
+                      $0.id == windowID && $0.window.owningApplication?.processID == owner
+                  }) else {
+                windows.removeAll { $0.id == windowID }
+                message = "選んだ発表画面が閉じられました。スライドショーを開き、共有画面を選び直してください。"
+                return
+            }
+            current = selected.window
+        } catch {
+            guard lifecycleID == attempt else { return }
+            windows = []
+            reportCaptureError(error, action: "発表画面を確認できません")
+            return
+        }
+        let filter = SCContentFilter(desktopIndependentWindow: current)
         let config = SCStreamConfiguration()
-        let ratio = window.window.frame.height / max(1, window.window.frame.width)
+        let ratio = current.frame.height / max(1, current.frame.width)
         config.width = 1280
         config.height = max(2, Int(1280 * ratio))
         config.minimumFrameInterval = CMTime(value: 1, timescale: 5)
@@ -113,7 +149,10 @@ final class WindowCapture: NSObject, ObservableObject, SCStreamOutput, SCStreamD
         } catch {
             guard lifecycleID == attempt else { return }
             _ = clearStreamState()
-            reportCaptureError(error, action: "共有を開始できません")
+            // Force explicit reselection after a failed filter, instead of
+            // leaving the preparation UI in a misleading ready state.
+            windows.removeAll { $0.id == windowID }
+            reportCaptureError(error, action: "共有画面を選び直してください")
         }
     }
 

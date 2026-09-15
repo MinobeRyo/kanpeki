@@ -23,6 +23,23 @@ import ScreenCaptureKit
         failure = nil
         await capture.refreshWindows(requestPermission: true)
         precondition(!capture.needsScreenPermission && !capture.refreshing)
+        await capture.start(windowID: 123, processID: 456)
+        precondition(calls == 5 && !capture.sharing && capture.windows.isEmpty)
+        precondition(!capture.needsScreenPermission && capture.message.contains("選び直し"), "Disappeared windows must return to selection, not request permission")
+        failure = NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.userDeclined.rawValue)
+        await capture.start(windowID: 123, processID: 456)
+        precondition(capture.needsScreenPermission && !capture.sharing, "Start must revalidate OS permission")
+        var pending: CheckedContinuation<[SCWindow], Error>?
+        let delayed = WindowCapture(preflightAccess: { true }, shareableWindows: {
+            try await withCheckedThrowingContinuation { pending = $0 }
+        })
+        let starting = Task { await delayed.start(windowID: 123, processID: 456) }
+        while pending == nil { await Task.yield() }
+        await delayed.stop()
+        pending?.resume(throwing: NSError(domain: "CoreGraphicsErrorDomain", code: 1003))
+        await starting.value
+        precondition(!delayed.sharing && delayed.message == "共有停止", "A late failed lookup must not overwrite cancellation")
+        print("Capture start: missing target, permission denial and cancelled lookup passed")
         print("Screen permission flow: 5 scenarios passed (injected API, no OS permission changed)")
     }
 }
