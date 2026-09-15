@@ -11,6 +11,8 @@ on:
       - "Tests/CoreTests.swift"
       - "Tests/TimerTests.swift"
       - "Tests/run_tests.sh"
+      - "Tests/test_signing.rb"
+      - "fastlane/signing.rb"
       - "scripts/check.sh"
       - "Sources/KanpekiCamera/**"
       - "Sources/KanpekiAudioHost/**"
@@ -36,6 +38,15 @@ jobs:
         check: [core, mac, phone]
     steps:
       - uses: actions/checkout@v4
+      - if: matrix.check == 'core'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - if: matrix.check == 'core'
+        name: Check signing changes stay within iPhone Release
+        run: |
+          gem install xcodeproj -v 1.27.0 --no-document
+          ruby Tests/test_signing.rb
       - run: bash scripts/check.sh "${{ matrix.check }}"
       - if: matrix.check == 'core' && hashFiles('Package.swift') != ''
         run: swift test
