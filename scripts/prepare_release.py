@@ -13,11 +13,11 @@ import sys
 
 TEAM = 'XYJX89KRDM'
 BUNDLE = 'jp.kanpeki.prototype.phone'
-REQUIRED = ('ASC_KEY_ID','ASC_ISSUER_ID','ASC_KEY_P8_BASE64','IOS_DISTRIBUTION_P12_BASE64','IOS_DISTRIBUTION_P12_PASSWORD','IOS_APPSTORE_PROFILE_BASE64','TESTFLIGHT_EXTERNAL_GROUP')
+REQUIRED = ('ASC_KEY_ID','ASC_ISSUER_ID','ASC_KEY_P8_BASE64','IOS_DISTRIBUTION_P12_BASE64','IOS_DISTRIBUTION_P12_PASSWORD','IOS_APPSTORE_PROFILE_BASE64')
 
 def build_number(run, attempt):
-    run, attempt = int(run), int(attempt)
-    if not 1 <= run <= 9999 or not 1 <= attempt <= 99:
+    run, attempt = 1000 + int(run), int(attempt)
+    if not 1001 <= run <= 9999 or not 1 <= attempt <= 99:
         raise ValueError('Build number range exceeded; update version strategy before releasing.')
     return f'{run}.{attempt}.0'
 
