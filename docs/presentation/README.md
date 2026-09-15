@@ -1,8 +1,8 @@
 # 発表スライド
 
-2026-09-15作成。学生が「最初の改善に踏み出す」価値を伝える本編7枚＋補足1枚。
+2026-09-15作成。発表前・本番・発表後の情報と操作をつなぐ価値を伝える本編7枚＋補足1枚。
 
-- [編集用PowerPoint](kanpeki-first-improvement.pptx)
+- [編集用PowerPoint](kanpeki-connected-presentation.pptx)
 - [発表者ノートと他のAIへの共有方針](NARRATIVE.md)
 - [担当Issue #85](https://github.com/MinobeRyo/kanpeki/issues/85)
 
