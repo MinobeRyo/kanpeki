@@ -8,4 +8,8 @@ xcrun swiftc -module-cache-path "$test_dir/modules" \
   "$project_dir/Shared/Models.swift" "$project_dir/Mac/PPTXImporter.swift" \
   "$project_dir/Tests/CoreTests.swift" -o "$test_dir/core-tests"
 "$test_dir/core-tests" "$test_dir/fixtures"
+xcrun swiftc -module-cache-path "$test_dir/modules" \
+  "$project_dir/Shared/PresentationNotificationPolicy.swift" \
+  "$project_dir/Tests/NotificationTests.swift" -o "$test_dir/notification-tests"
+"$test_dir/notification-tests"
 echo "Test artifacts: $test_dir"
