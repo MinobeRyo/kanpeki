@@ -14,6 +14,8 @@
 
 [キャラクター案内・翻訳・分析・振り返りの画面設計](specs/ASSISTANCE_FLOW.md)を参照してください。
 
+[AI改善提案の方針](specs/AI_COACHING.md)に、どんな発表を支援し、何の情報から何を提案するか、具体例・優先順位・実装済みの入力と追加計測の境界をまとめています。
+
 ## 会場での引き継ぎ
 
 [全成果物と検証状況](docs/HANDOFF.md)を入口に、[提出案内・2分動画台本](docs/SUBMISSION.md)、[Codex活用の証拠](docs/CODEX_EVIDENCE.md)、[技術構成](specs/ARCHITECTURE.md)、[Slack連携案](docs/SLACK.md)を確認してください。
