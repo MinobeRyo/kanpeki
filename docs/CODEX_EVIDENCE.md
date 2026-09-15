@@ -12,7 +12,15 @@
 | 画面比率・余白・指の届く位置の検討 | assets/design/device-size | 一覧画像から個別画面へ具体化。実機の操作性は未検証 |
 | 準備用GitHub Actions | docs/HANDOFF.mdの実行リンク | 自動実行経路の一部を確認。アプリCI/CDではない |
 
-事前の設計成果であることを明示する。当日の実装・テスト・レビューの実績は、実際の作業後に追記する。
+上表は事前の設計成果。後続の実装・テスト・レビューは下記の実記録を入口にする。効果の数値を推測しない。
+
+## 当日の実装・検証の入口
+
+- [PR #51](https://github.com/MinobeRyo/kanpeki/pull/51)：発表とカメラのUUID関連付け、前回結果混入防止。
+- [PR #54](https://github.com/MinobeRyo/kanpeki/pull/54)：画像identityと古い操作の拒否。
+- [PR #60](https://github.com/MinobeRyo/kanpeki/pull/60)：録音の許可待ち・旧callback・不正結果の検証、明示的な発表音声入口。
+- [Issue #28の配布成功](https://github.com/MinobeRyo/kanpeki/issues/28#issuecomment-5674062963)：署名失敗の修正から両内部TestFlightへの配布。全員の利用確認とは別。
+- 個別テスト・実機未検証・未マージは[STATUS](STATUS.md)で分離する。これらを全コードの当日新規開発と表現しない。
 
 ## 当日の記録テンプレート
 

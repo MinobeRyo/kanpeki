@@ -2,6 +2,10 @@
 
 PowerPointの本文と発表者ノート、発表目的、制限時間から、話す内容と各スライドの時間配分を提案するMac向けの検証アプリです。
 
+## 現状の区別
+
+このフォルダは独立実験。2026-09-15のmainでは事前分析結果の本体/iPhone適用は未接続（#34/#15）。資料MCP・発表振り返りのPR #58、品質補強PR #73は[STATUS](../../docs/STATUS.md)の未マージ欄で区別する。下のOllama共有は明示的に選んだ実験経路で、全員へのモデル取得要求や無断の送信を意味しない。
+
 ## 開き方
 
 リポジトリのルートにある `Kanpeki.xcworkspace` を開き、スキーム `SlidePacer`、実行先 `My Mac` を選びます。`KanpekiMac` / `KanpekiPhone` と同じworkspaceでソースを閲覧・編集できます。既存アプリとの画面・通信接続はまだ行っていません。
@@ -45,4 +49,4 @@ xcodebuild -project SlidePacer.xcodeproj -scheme SlidePacer \
 
 回帰テストはMacのSwiftコンパイラーとPython 3を使用します。その他の `scripts/` は過去の精度比較用で、個別の `evaluation/` 入力ファイルが必要です。個人資料・元資料の本文を含む評価ファイル・モデル・ビルド成果物は同梱していません。
 
-[検証結果と制約](docs/VALIDATION.md) · [共有作業Issue #12](https://github.com/MinobeRyo/kanpeki/issues/12)
+[検証結果と制約](docs/VALIDATION.md) · [統合作業Issue #34](https://github.com/MinobeRyo/kanpeki/issues/34)

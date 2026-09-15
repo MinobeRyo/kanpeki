@@ -14,6 +14,7 @@ import KanpekiCamera
                 CommandMenu("準備") {
                     Button("共有画面を選ぶ…") { actions?.window() }
                     Button("接続方法を変更…") { actions?.connection() }
+                    Button("QRでつなぐ") { actions?.qr() }
                     Button("時間を調整…") { actions?.time() }
                     Divider()
                     Button("カメラの設定・結果") { actions?.camera() }
@@ -47,6 +48,7 @@ struct MacScreen: View {
     @State private var adjustment: MacTimeDraft?
     @State private var windowDraft: MacPreparationDraft?
     @State private var connectionDraft: MacPreparationDraft?
+    @State private var showQR = false
     @StateObject private var camera = CameraController()
     @State private var presentationResult = PresentationResultAssociation()
     @State private var showCamera = false
@@ -136,13 +138,14 @@ struct MacScreen: View {
         }.padding(28).frame(minWidth: 860, minHeight: 620)
             .background(mint).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
             .background(MacSlideKeyboard(model: model, onNarrowWindow: {}).frame(width: 0, height: 0))
-            .task { await capture.refreshWindows() }
+            .task { await capture.refreshWindows(); if !link.running { link.start() } }
             .onChange(of: model.documentRevision) { _, _ in screenOnly = false }
             .focusedSceneValue(\.preparationActions, MacPreparationActions(
                 window: { selectWindow() },
                 connection: { if !busy { connectionDraft = preparationDraft() } },
                 time: { if !busy, model.state.timer?.phase == .ready, let snapshot = model.state.timer { adjustment = MacTimeDraft(snapshot:snapshot) } },
-                camera: { showCamera = true }, details: { showDetails = true }))
+                camera: { showCamera = true }, details: { showDetails = true }, qr: { showQR = true }))
+            .sheet(isPresented: $showQR) { QRPairingSheet(link: link) }
             .sheet(isPresented: $showScreenReview) { ScreenReview() }
             .sheet(isPresented: $showCamera) {
                 VStack {
@@ -202,10 +205,10 @@ struct MacScreen: View {
                 }
                 Button("続ける", role: .cancel) { endingSession = nil }
             }
-            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitationName != nil }, set: { if !$0 { link.respondToInvitation(accept: false) } })) {
-                Button("許可") { link.respondToInvitation(accept: true) }
-                Button("拒否", role: .cancel) { link.respondToInvitation(accept: false) }
-            } message: { Text("\(link.invitationName ?? "iPhone") に共有画面と原稿を送ります。自分の端末名か確認してください。") }
+            .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitation != nil && !showQR }, set: { _ in }), presenting: link.invitation) { invitation in
+                Button("許可") { link.respondToInvitation(accept: true, invitationID: invitation.id) }
+                Button("拒否", role: .cancel) { link.respondToInvitation(accept: false, invitationID: invitation.id) }
+            } message: { invitation in Text("\(invitation.name) に共有画面と原稿を送ります。自分の端末から接続を操作したか確認してください。") }
             .alert("確認が必要です", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
                 if capture.needsScreenPermission { Button("システム設定を開く") { capture.openScreenPermissionSettings() } }
                 Button("OK") { model.errorMessage = nil }
@@ -229,6 +232,7 @@ struct MacScreen: View {
                 if model.deck == nil { Button("資料を選ばず、画面を共有") { screenOnly = true } }
                 Button("時間を調整") { if let value = model.state.timer { adjustment = MacTimeDraft(snapshot:value) } }.disabled(busy)
             }
+            Button("QRでつなぐ") { showQR = true }.disabled(link.connectedName != nil)
             Button("接続方法を変更") { connectionDraft = preparationDraft() }.disabled(busy || model.state.timer?.phase == .ended)
             if link.running && link.connectedName == nil { Button("接続待機を停止") { link.stop() }.disabled(busy) }
             Divider()
@@ -334,6 +338,7 @@ private struct MacPreparationActions {
     var time: () -> Void
     var camera: () -> Void
     var details: () -> Void
+    var qr: () -> Void
 }
 private struct MacPreparationActionsKey: FocusedValueKey { typealias Value = MacPreparationActions }
 private extension FocusedValues {

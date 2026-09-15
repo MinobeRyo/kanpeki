@@ -20,4 +20,4 @@
 
 `bash scripts/check.sh core`で正規化、レターボックス、左右タップ、移動後指離し、30Hz上限、複数指、領域外、失効、順序逆転、古いsession、通信契約を検証する。`mac`と`phone`で双方を署名なしビルドする。
 
-未実施：実iPhoneとMac間の追従/タップ30回、PowerPoint全画面/外部ディスプレイ/Spaces/ウィンドウ移動/重なり/画面収録許可、パケット損失、片手閾値調整、TestFlight実機検証。Windowsは現行ネイティブ製品の対象外で、表示方式/権限を検証していない。QR/WebSocketへの移行は #19 に残す。Issue #16 全体の完了とは扱わない。
+未実施：実iPhoneとMac間の追従/タップ30回、PowerPoint全画面/外部ディスプレイ/Spaces/ウィンドウ移動/重なり/画面収録許可、パケット損失、片手閾値調整、TestFlight実機検証。Windowsは現行ネイティブ製品の対象外で、表示方式/権限を検証していない。後続PR #71のQR直接TLS経路も同じ操作契約を使用する（[QR_CONNECTION](QR_CONNECTION.md)）。WebSocket移行とは別。Issue #16 全体の完了とは扱わない。

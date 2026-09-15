@@ -25,9 +25,6 @@ jobs:
           python-version: '3.12'
       - name: Forward eligible report
         env:
-          GH_TOKEN: ${{ github.token }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
-          TESTFLIGHT_TESTER_URL: ${{ vars.TESTFLIGHT_TESTER_URL }}
-          MAC_TESTER_URL: ${{ vars.MAC_TESTER_URL }}
         run: python scripts/slack_progress.py
