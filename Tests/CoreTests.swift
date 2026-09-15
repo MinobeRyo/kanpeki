@@ -8,6 +8,7 @@ import Foundation
         print("PASS: \(description)")
     }
     static func main() throws {
+        try testSlidePointer()
         let folder = URL(fileURLWithPath: CommandLine.arguments[1])
         let deck = try PPTXImporter.load(folder.appendingPathComponent("reordered.pptx"))
         expect(deck.slides.map(\.id) == [400, 256, 900], "presentation.xml defines order; filenames do not")

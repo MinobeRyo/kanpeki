@@ -12,6 +12,7 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
     @Published public private(set) var phase: CameraPhase = .stopped
     @Published public private(set) var summary = CameraSummary()
     @Published public private(set) var subject: CameraSubject = .audience
+    @Published public private(set) var result = CameraResult()
     public let captureSession = AVCaptureSession()
     private let queue = DispatchQueue(label: "kanpeki.camera", qos: .userInitiated)
     private var analysis: AnalysisSession?
@@ -49,12 +50,14 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
         let id = UUID()
         requestID = id
         self.subject = subject
+        result.begin(id: id, subject: subject)
         phase = .preparing
         summary = CameraSummary()
         AVCaptureDevice.requestAccess(for: .video) { [weak self] allowed in
             DispatchQueue.main.async {
                 guard let self, self.requestID == id else { return }
                 guard allowed else {
+                    self.result.update(id: id, status: .permissionDenied)
                     self.phase = .failed("カメラを使用できません。システム設定で許可してください。")
                     return
                 }
@@ -126,11 +129,17 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
                 UIApplication.shared.isIdleTimerDisabled = true
                 #endif
                 self.phase = .running
+                self.result.update(id: id, status: .collecting)
             }
         } catch { fail(error) }
     }
 
     public func stop(interrupted: Bool = false) {
+        guard phase == .running || phase == .preparing else { return }
+        let sessionID = requestID
+        let wasRunning = phase == .running
+        let finalStatus: CameraResult.Status = wasRunning ? (interrupted ? .inputInterrupted : .completed) : .cancelled
+        result.update(id: sessionID, status: .finalizing, summary: summary)
         requestID = UUID()
         let stoppedID = requestID
         #if os(iOS)
@@ -140,12 +149,20 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
         queue.async {
             let finalSummary = self.analysis?.summary
             self.tearDown()
-            if let finalSummary {
-                DispatchQueue.main.async {
-                    if self.requestID == stoppedID { self.summary = finalSummary }
-                }
+            DispatchQueue.main.async {
+                guard self.requestID == stoppedID else { return }
+                if let finalSummary { self.summary = finalSummary }
+                self.result.update(id: sessionID, status: finalStatus, summary: self.summary)
             }
         }
+    }
+
+    /// The caller must confirm deletion and pass the displayed session identity.
+    public func deleteResult(id: UUID) {
+        guard result.delete(id: id) else { return }
+        requestID = UUID()
+        summary = CameraSummary()
+        phase = .stopped
     }
 
     private func tearDown() {
@@ -208,6 +225,7 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
 
     private func fail(_ error: Error) {
         let id = activeID
+        let finalSummary = analysis?.summary
         tearDown()
         DispatchQueue.main.async {
             guard self.requestID == id else { return }
@@ -215,6 +233,8 @@ public final class CameraController: NSObject, ObservableObject, AVCaptureVideoD
             if self.phase == .running { UIApplication.shared.isIdleTimerDisabled = self.previousIdleTimer }
             #endif
             self.phase = .failed(error.localizedDescription)
+            if let finalSummary { self.summary = finalSummary }
+            self.result.update(id: id, status: .failed(error.localizedDescription), summary: self.summary)
         }
     }
 }

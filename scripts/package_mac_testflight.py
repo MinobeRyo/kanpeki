@@ -9,6 +9,7 @@ import shlex
 import subprocess
 import tempfile
 from package_mac import run
+from prepare_release import build_number
 
 BUNDLE = 'jp.kanpeki.prototype.mac'
 TEAM = 'XYJX89KRDM'
@@ -23,7 +24,9 @@ def validate_profile(data):
 def main():
     if os.environ.get('GITHUB_REF') != 'refs/heads/main' or os.environ.get('GITHUB_ACTIONS') != 'true':
         raise RuntimeError('Release only from main on GitHub Actions')
-    number = f'{os.environ["GITHUB_RUN_NUMBER"]}.{os.environ["GITHUB_RUN_ATTEMPT"]}.0'
+    number = build_number(os.environ["GITHUB_RUN_NUMBER"], os.environ["GITHUB_RUN_ATTEMPT"])
+    with open(os.environ["GITHUB_ENV"], "a") as f:
+        f.write("RELEASE_BUILD_NUMBER=" + number + "\n")
     out = Path('dist').resolve(); out.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='kanpeki-mac-store-', dir=os.environ['RUNNER_TEMP']) as tmp:
         root = Path(tmp); keychain = str(root/'signing.keychain-db'); password = secrets.token_hex(32)

@@ -22,6 +22,6 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError): m.validate_profile(p)
     def test_run_and_retry_unique(self):
         self.assertEqual(len({m.build_number(r,a) for r in range(1,20) for a in range(1,4)}),57)
-        self.assertEqual(m.build_number(1,1),'1.1.0')
-        with self.assertRaises(ValueError):m.build_number(10000,1)
+        self.assertEqual(m.build_number(1,1),'1001.1.0')
+        with self.assertRaises(ValueError):m.build_number(9000,1)
 if __name__=='__main__':unittest.main()

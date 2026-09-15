@@ -92,9 +92,9 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
         handler?(accept, accept ? session : nil)
     }
 
-    func send(_ message: WireMessage) {
+    func send(_ message: WireMessage, reliably: Bool = true) {
         guard !session.connectedPeers.isEmpty, let data = try? JSONEncoder().encode(message), data.count <= WireCodec.maxMessageBytes else { return }
-        do { try session.send(data, toPeers: session.connectedPeers, with: .reliable) }
+        do { try session.send(data, toPeers: session.connectedPeers, with: reliably ? .reliable : .unreliable) }
         catch { status = "送信失敗: \(error.localizedDescription)" }
     }
 

@@ -12,6 +12,9 @@ import UniformTypeIdentifiers
     @Published var monitoring = false
     @Published var errorMessage: String?
     @Published var events: [SlideObservation] = []
+    @Published private(set) var timerReceivedAt: TimeInterval?
+    @Published private(set) var timerFinishing = false
+    private var presentationTimer = PresentationTimerAuthority()
     private let bridge: PresentationControlling = PowerPointBridge()
     private var timer: Timer?
     private var sessionID = UUID()
@@ -23,6 +26,8 @@ import UniformTypeIdentifiers
     private var lastObservedPath: String?
     private var latestJPEG: Data?
     private var heartbeat: Timer?
+    private let pointerOverlay = SlidePointerOverlay()
+    private var pointerReceiver = SlidePointerReceiver()
 
     init() {
         capture.onJPEG = { [weak self] data in self?.latestJPEG = data; self?.link.sendFrame(data) }
@@ -36,26 +41,43 @@ import UniformTypeIdentifiers
         link.onConnection = { [weak self] connected in
             guard let self else { return }
             self.requests = RequestDeduplicator()
+            self.resetPointer()
             if connected {
                 self.publishState()
                 if self.capture.sharing, let jpeg = self.latestJPEG { self.link.sendFrame(jpeg) }
             }
         }
         link.onMessage = { [weak self] message in
-            guard let self, message.kind == "control", let action = message.action, self.requests.accept(message.requestID) else { return }
+            if message.kind == "pointer", let self, let update = message.pointer,
+               self.pointerReceiver.accept(update, sessionID: self.state.pointerSessionID) {
+                if let point = update.point, self.capture.sharing, self.state.canControl, self.state.allowsSlideInteraction,
+                   self.link.connectedName != nil, let windowID = self.sharedWindow?.id {
+                    self.pointerOverlay.show(point, windowID: windowID)
+                } else { self.pointerOverlay.clear() }
+                return
+            }
+            guard let self, self.requests.accept(message.requestID) else { return }
+            if message.kind == "timerControl", let command = message.timerCommand {
+                self.applyTimer(command)
+                return
+            }
+            guard message.kind == "control", let action = message.action else { return }
             if action == .refresh { self.publishState() } else { self.move(action) }
         }
         heartbeat = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.publishState() }
         }
+        publishState()
     }
 
     func startSharing() async {
+        guard !timerFinishing else { return }
         guard let window = capture.windows.first(where: { $0.id == selectedWindowID }) else { return }
         disableControl()
         latestJPEG = nil
         sharedWindow = window
         state = PresentationState()
+        resetPointer()
         state.title = window.window.owningApplication?.applicationName ?? "画面共有"
         await capture.start(window: window)
         state.isSharing = capture.sharing
@@ -88,6 +110,7 @@ import UniformTypeIdentifiers
     }
 
     func disableControl() {
+        resetPointer()
         timer?.invalidate()
         timer = nil
         monitoring = false
@@ -119,6 +142,7 @@ import UniformTypeIdentifiers
                 } else { state.notesStatus = "表示中の資料とpptxが一致しません。保存後に同じファイルを再取込してください" }
             } else { state.notesStatus = "発表者ノートを表示するにはpptxを読み込んでください" }
             if lastObservedID != position.id || lastObservedPath != position.path {
+                resetPointer()
                 events.append(SlideObservation(sessionID: sessionID, observedAt: Date(), elapsedMs: Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1000), presentation: position.title, slideID: position.id, slideIndex: position.index, timingSource: "PowerPoint polling 800ms; observed time, not exact transition time"))
                 lastObservedID = position.id
                 lastObservedPath = position.path
@@ -133,7 +157,7 @@ import UniformTypeIdentifiers
     }
 
     func move(_ action: RemoteAction) {
-        guard state.canControl, monitoring, capture.sharing else { return }
+        guard state.canControl, state.allowsSlideInteraction, monitoring, capture.sharing else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastMoveAt > 0.25 else { return }
         lastMoveAt = now
@@ -192,5 +216,38 @@ import UniformTypeIdentifiers
         } catch { errorMessage = error.localizedDescription }
     }
 
-    private func publishState() { link.send(WireMessage(kind: "state", state: state)) }
+    private func resetPointer() {
+        pointerOverlay.clear()
+        pointerReceiver = SlidePointerReceiver()
+        state.pointerSessionID = UUID()
+    }
+
+    func timerAction(_ action: PresentationTimerAction, duration: Double?) {
+        let snapshot = presentationTimer.snapshot(at: TimerClock.now)
+        applyTimer(PresentationTimerCommand(sessionID: snapshot.sessionID, revision: snapshot.revision,
+            sequence: snapshot.sequence, action: action, durationSeconds: duration))
+    }
+
+    private func applyTimer(_ command: PresentationTimerCommand) {
+        guard !timerFinishing else { publishState(); return }
+        guard command.action != .start || capture.sharing else { publishState(); return }
+        let applied = presentationTimer.apply(command, at: TimerClock.now)
+        if applied && command.action == .end { timerFinishing = true }
+        publishState()
+        if applied && command.action == .end {
+            Task {
+                await stopSharing()
+                timerFinishing = false
+                publishState()
+            }
+        }
+    }
+
+    private func publishState() {
+        let now = TimerClock.now
+        state.timer = presentationTimer.snapshot(at: now)
+        state.timer?.isFinishing = timerFinishing
+        timerReceivedAt = now
+        link.send(WireMessage(kind: "state", state: state))
+    }
 }

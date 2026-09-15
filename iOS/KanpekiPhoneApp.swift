@@ -10,6 +10,20 @@ import Combine
     @Published var lastFrameDate: Date?
     @Published var lastStateDate: Date?
     @Published var lastTapDate = Date.distantPast
+    @Published private(set) var timerReceivedAt: TimeInterval?
+    private var timerReceiver = PresentationTimerReceiver()
+    private var pointerSequence: UInt64 = 0
+
+    func sendPointer(_ point: SlidePointerPoint?) {
+        guard link.connectedName != nil, let sessionID = state.pointerSessionID else { return }
+        if point != nil {
+            guard state.canControl, state.allowsSlideInteraction, state.isSharing,
+                  let lastStateDate, Date().timeIntervalSince(lastStateDate) < 3,
+                  let lastFrameDate, Date().timeIntervalSince(lastFrameDate) < 3 else { return }
+        }
+        pointerSequence &+= 1
+        link.send(WireMessage(kind: "pointer", pointer: SlidePointerUpdate(sessionID: sessionID, sequence: pointerSequence, point: point)), reliably: point == nil)
+    }
 
     init() {
         link.onFrame = { [weak self] data in
@@ -19,7 +33,9 @@ import Combine
         }
         link.onMessage = { [weak self] message in
             guard message.kind == "state", let state = message.state, let self else { return }
+            guard self.timerReceiver.accept(state.timer) else { return }
             self.state = state
+            self.timerReceivedAt = state.timer == nil ? nil : TimerClock.now
             self.lastStateDate = Date()
             if !state.isSharing { self.image = nil; self.lastFrameDate = nil }
         }
@@ -28,12 +44,14 @@ import Combine
             self.image = nil
             self.lastFrameDate = nil
             self.lastStateDate = nil
+            self.timerReceivedAt = nil
+            self.timerReceiver = PresentationTimerReceiver()
             self.state = PresentationState()
             if connected { self.link.send(WireMessage(kind: "control", action: .refresh)) }
         }
     }
     func move(_ action: RemoteAction) {
-        guard link.connectedName != nil, state.canControl, state.isSharing,
+        guard link.connectedName != nil, state.canControl, state.allowsSlideInteraction, state.isSharing,
               let lastStateDate, Date().timeIntervalSince(lastStateDate) < 3,
               Date().timeIntervalSince(lastTapDate) >= 0.3 else { return }
         lastTapDate = Date()
@@ -41,11 +59,22 @@ import Combine
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
     func stop() {
+        sendPointer(nil)
         link.stop()
         image = nil
         lastFrameDate = nil
         lastStateDate = nil
+        timerReceivedAt = nil
+        timerReceiver = PresentationTimerReceiver()
         state = PresentationState()
+    }
+
+    func timerAction(_ action: PresentationTimerAction, duration: Double?) {
+        guard link.connectedName != nil, let snapshot = state.timer, let timerReceivedAt,
+              TimerClock.now - timerReceivedAt < 3, snapshot.isFinishing != true else { return }
+        let command = PresentationTimerCommand(sessionID: snapshot.sessionID, revision: snapshot.revision,
+            sequence: snapshot.sequence, action: action, durationSeconds: duration)
+        link.send(WireMessage(kind: "timerControl", timerCommand: command))
     }
 }
 
@@ -67,11 +96,12 @@ struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
     @State private var showDetails = false
+    @State private var showScreenReview = false
+    @State private var reviewAfterDetails = false
     @StateObject private var camera = CameraController()
     @State private var showCamera = false
+    @StateObject private var notifications = PresentationNotificationPresenter()
     @Environment(\.scenePhase) private var cameraScenePhase
-    @State private var dragged = false
-    @State private var touchStarted: Date?
     private let ink = Color(red: 92/255, green: 102/255, blue: 115/255)
     private let paper = Color(red: 249/255, green: 255/255, blue: 230/255)
     private let mint = Color(red: 217/255, green: 235/255, blue: 213/255)
@@ -83,9 +113,19 @@ struct PhoneScreen: View {
                     Image("BrandMascot").resizable().scaledToFit().frame(width: 42, height: 42)
                     Text("カンペき").font(.title2.bold())
                     Spacer()
+                    PresentationTimerStatus(snapshot: model.state.timer, receivedAt: model.timerReceivedAt, connected: link.connectedName != nil)
                     Button { showDetails = true } label: {
                         Image(systemName: "ellipsis").frame(width: 44, height: 44)
                     }.accessibilityLabel("接続と操作の詳細")
+                }
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    let timer = model.state.timer
+                    let fresh = link.connectedName != nil && model.timerReceivedAt.map { TimerClock.now - $0 < 3 } == true
+                    PresentationNotificationBanner(presenter: notifications,
+                        input: PresentationNotificationInput(sessionID: timer?.sessionID,
+                            isExpired: timer?.durationSeconds.map { timer!.elapsedSeconds >= $0 } ?? false,
+                            isPresenting: timer?.phase == .running || timer?.phase == .paused,
+                            isForeground: cameraScenePhase == .active, isConnected: fresh))
                 }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -94,13 +134,14 @@ struct PhoneScreen: View {
                             Text("Macで接続待機を開始してください。")
                             Button(link.running ? "もう一度探す" : "近くのMacを探す") {
                                 model.stop(); link.start()
-                            }.buttonStyle(.borderedProminent).controlSize(.large)
+                            }.buttonStyle(BrandPrimaryButtonStyle()).controlSize(.large)
                             ForEach(link.availablePeers, id: \.self) { peer in
                                 Button { link.invite(peer) } label: {
                                     Label(peer.displayName, systemImage: "desktopcomputer")
                                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                 }.buttonStyle(.bordered)
                             }
+                            Button("画面構成を試す") { showScreenReview = true }.buttonStyle(.bordered)
                             Text(link.status).font(.caption)
                             HStack {
                                 Image("BrandMascot").resizable().scaledToFit().frame(width: 72, height: 72)
@@ -141,16 +182,29 @@ struct PhoneScreen: View {
             }.padding(16).background(mint.ignoresSafeArea())
                 .foregroundStyle(ink)
                 .toolbar(.hidden, for: .navigationBar)
-                .sheet(isPresented: $showDetails) {
+                .sheet(isPresented: $showDetails, onDismiss: {
+                    if reviewAfterDetails {
+                        reviewAfterDetails = false
+                        showScreenReview = true
+                    }
+                }) {
                     NavigationStack {
                         List {
+                            Section("画面確認") {
+                                Button("画面構成を試す") { reviewAfterDetails = true; showDetails = false }
+                            }
                             Section("操作") {
                                 Text("スライドの右側をタップすると進み、左側で戻ります。")
-                                Text("ポインター送信・時間通知・音声分析は準備中です。")
+                                Text("スライド上で指を動かすとMacにポインターを表示します。指を離してもページは変わりません。")
                             }
                             Section("カメラ") {
                                 Button("カメラの設定・結果") { showCamera = true }
                                 if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)") }
+                            }
+                            Section("発表時間") {
+                                PresentationTimerPanel(snapshot: model.state.timer, receivedAt: model.timerReceivedAt,
+                                    connected: link.connectedName != nil, canStart: model.state.isSharing,
+                                    send: { model.timerAction($0, duration: $1) })
                             }
                             Section("接続") { Text(link.status); Text(model.state.message); Text(model.state.notesStatus) }
                             if link.connectedName != nil {
@@ -167,12 +221,17 @@ struct PhoneScreen: View {
                     }
                 }
         }.tint(ink).preferredColorScheme(.light)
+        .fullScreenCover(isPresented: $showScreenReview) { ScreenReview() }
         .onChange(of: cameraScenePhase) { _, phase in
+            if phase != .active { model.sendPointer(nil) }
             if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {
                 camera.stop(interrupted: true)
             }
         }
-        .onDisappear { camera.stop() }
+        .onDisappear { camera.stop(); model.sendPointer(nil) }
+        .onChange(of: model.state.timer?.phase) { _, phase in
+            if phase == .ended { camera.stop() }
+        }
     }
 
     private func turn(_ action: RemoteAction, fresh: Bool) {
@@ -193,17 +252,13 @@ struct PhoneScreen: View {
                 }
             }.clipShape(RoundedRectangle(cornerRadius: 14))
                 .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        if touchStarted == nil { touchStarted = value.time }
-                        if hypot(value.translation.width, value.translation.height) > 8 { dragged = true }
-                    }
-                    .onEnded { value in
-                        defer { dragged = false; touchStarted = nil }
-                        guard !dragged, hypot(value.translation.width, value.translation.height) <= 8,
-                              value.time.timeIntervalSince(touchStarted ?? value.time) < 0.5 else { return }
-                        turn(value.location.x < geo.size.width / 2 ? .previous : .next, fresh: fresh)
-                    })
+                .overlay {
+                    SlideTouchSurface(imageSize: model.image?.size ?? .zero,
+                                      enabled: fresh && model.state.canControl && model.state.allowsSlideInteraction && cameraScenePhase == .active && !showDetails,
+                                      sessionID: model.state.pointerSessionID,
+                                      onPointer: model.sendPointer,
+                                      onTap: { turn($0, fresh: fresh) })
+                }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("共有スライド")
                 .accessibilityAction(named: "次のスライド") { turn(.next, fresh: fresh) }
