@@ -18,10 +18,11 @@ def beta_options(key, version, number)
     apple_id: "6809810244",
     app_version: version,
     build_number: number,
-    groups: [ENV.fetch("TESTFLIGHT_EXTERNAL_GROUP")],
-    distribute_external: true,
-    notify_external_testers: true,
-    submit_beta_review: true,
+
+    distribute_external: false,
+    notify_external_testers: false,
+    submit_beta_review: false,
+    skip_submission: true,
     skip_waiting_for_build_processing: false,
     wait_processing_timeout_duration: 1800,
     wait_processing_interval: 30,
@@ -37,14 +38,14 @@ end
 def report_submission(version, number)
   File.open(ENV.fetch("GITHUB_STEP_SUMMARY"), "a") do |f|
     f.puts "## TestFlight #{version} (#{number})"
-    f.puts "Upload, processing and external-group submission completed. Apple beta review may still be pending; this does not mean every tester can install yet."
+    f.puts "Upload and processing completed. The following internal-group assignment step must succeed before testers can install."
     f.puts "[TestFlight](https://appstoreconnect.apple.com/apps/6809810244/testflight)"
   end
 end
 
 default_platform(:ios)
 platform :ios do
-  desc "Archive main and submit to the configured team beta group"
+  desc "Archive main and prepare internal team testing"
   lane :beta do
     assert_release_context
     root = File.expand_path("..", __dir__)
@@ -77,7 +78,7 @@ platform :ios do
 end
 
 platform :mac do
-  desc "Upload the sandboxed Mac package and submit external beta review"
+  desc "Upload the sandboxed Mac package and prepare internal testing"
   lane :beta do
     assert_release_context
     key = app_store_connect_api_key(
@@ -90,8 +91,8 @@ platform :mac do
       app_platform: "osx", pkg: File.expand_path("../dist/KanpekiMac.pkg", __dir__),
       app_version: get_version_number(xcodeproj: "Kanpeki.xcodeproj", target: "KanpekiMac"),
       build_number: ENV.fetch("RELEASE_BUILD_NUMBER"),
-      groups: ["7d3f3f2e-7cb0-4123-a4df-2a1b52ef934b"],
-      distribute_external: true, notify_external_testers: true, submit_beta_review: true,
+      skip_submission: true,
+      distribute_external: false, notify_external_testers: false, submit_beta_review: false,
       skip_waiting_for_build_processing: false, wait_processing_timeout_duration: 1800,
       wait_processing_interval: 30, expire_previous_builds: false,
       changelog: File.read(File.expand_path("../docs/TESTFLIGHT_NOTES.txt", __dir__))

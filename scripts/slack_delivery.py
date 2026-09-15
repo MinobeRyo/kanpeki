@@ -9,8 +9,8 @@ from slack_release import gh, apple, apple_token, state_label, plain, post, requ
 from prepare_release import build_number
 
 PLATFORMS = (
-    ('iPhone', '6809810244', 'fef3aa45-1839-492a-80c6-729735c12890', 'TESTFLIGHT_TESTER_URL'),
-    ('Mac', '6811774996', '7d3f3f2e-7cb0-4123-a4df-2a1b52ef934b', 'MAC_TESTER_URL'),
+    ('iPhone', '6809810244', '08b44746-1f96-4214-ab2a-71f58f3af05d', 'TESTFLIGHT_TESTER_URL'),
+    ('Mac', '6811774996', '89123d5e-d868-4e99-947d-274cb8065ac9', 'MAC_TESTER_URL'),
 )
 
 def status(app, group, number, token):
@@ -31,7 +31,18 @@ def status(app, group, number, token):
         if link and not link.startswith(prefix):
             raise ValueError('Unexpected Apple pagination URL')
         path = link[len(prefix):] if link else None
-    return state_label(build['attributes'], detail, found), version
+    attrs = build['attributes']
+    if attrs.get('expired'):
+        label = '期限切れ'
+    elif attrs.get('processingState') != 'VALID':
+        label = 'Apple処理中・まだ利用不可'
+    elif detail.get('internalBuildState') == 'IN_BETA_TESTING' and found:
+        label = '内部テスト可能（招待受諾が必要）'
+    elif not found:
+        label = '内部グループ割当は未確認'
+    else:
+        label = '内部状態: ' + detail.get('internalBuildState', '不明')
+    return label, version
 
 def main():
     if os.environ.get('GITHUB_REF') != 'refs/heads/main':
@@ -66,11 +77,7 @@ def main():
                'unfurl_links': False, 'unfurl_media': False,
                'blocks': [{'type': 'section', 'text': plain(summary)},
                           {'type': 'actions', 'elements': []}]}
-    for name, _, _, url in results:
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme != 'https' or parsed.netloc != 'testflight.apple.com' or not parsed.path.startswith('/join/'):
-            raise ValueError('Invalid TestFlight URL')
-        payload['blocks'][1]['elements'].append({'type': 'button', 'text': plain(name + ' TestFlight'), 'url': url})
+    payload['blocks'][1]['elements'].append({'type': 'button', 'text': plain('TestFlightを入手'), 'url': 'https://testflight.apple.com/'})
     payload['blocks'][1]['elements'].append({'type': 'button', 'text': plain('配布ログ'), 'url': run['html_url']})
     def persist():
         statefile.write_text(json.dumps(saved))
@@ -89,7 +96,7 @@ def main():
         prs = [pr for pr in gh('commits/' + run['head_sha'] + '/pulls') if pr.get('merged_at') and pr['base']['ref'] == 'main']
         changes = '\n'.join('・' + brief(pr['title'], 65, 1) for pr in prs[:2]) or '変更内容は配布ログのコミットを確認してください。'
         post({'channel': os.environ['SLACK_CHANNEL_ID'], 'thread_ts': entry['ts'],
-              'text': changes + '\nTestFlightで上記ビルドへ更新し、アイコンと起動を確認してください。',
+              'text': changes + '\n初回はAppleの招待を受諾。その後TestFlightアプリで上記ビルドへ更新してください。',
               'client_msg_id': str(uuid.uuid5(uuid.NAMESPACE_URL, key + '/notes')),
               'unfurl_links': False, 'unfurl_media': False})
         entry['notes'] = True

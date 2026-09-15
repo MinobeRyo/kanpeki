@@ -32,6 +32,7 @@ jobs:
         run: |
           python3 Tests/test_release.py
           python3 Tests/test_merge_preflight.py
+          python3 Tests/test_internal_delivery.py
           python3 Tests/test_slack_delivery.py
           python3 Tests/test_slack_release.py
           python3 Tests/test_slack_progress.py

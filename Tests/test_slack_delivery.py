@@ -16,7 +16,7 @@ class DeliveryTests(unittest.TestCase):
     def test_approved_without_group_not_installable(self):
         replies = [
             {'data': [{'id':'b', 'attributes':{'processingState':'VALID'}}]},
-            {'data': {'attributes': {'externalBuildState':'IN_BETA_TESTING'}}},
+            {'data': {'attributes': {'internalBuildState':'IN_BETA_TESTING'}}},
             {'data': {'attributes': {'version':'0.1.0'}}},
             {'data': [], 'links': {}}]
         with patch.object(m, 'apple', side_effect=replies):
@@ -25,12 +25,12 @@ class DeliveryTests(unittest.TestCase):
     def test_group_pagination(self):
         replies = [
             {'data': [{'id':'b', 'attributes':{'processingState':'VALID'}}]},
-            {'data': {'attributes': {'externalBuildState':'IN_BETA_TESTING'}}},
+            {'data': {'attributes': {'internalBuildState':'IN_BETA_TESTING'}}},
             {'data': {'attributes': {'version':'0.1.0'}}},
             {'data': [], 'links': {'next':'https://api.appstoreconnect.apple.com/v1/next'}},
             {'data': [{'id':'b'}], 'links': {}}]
         with patch.object(m, 'apple', side_effect=replies):
-            self.assertIn('指定の外部グループでテスト可能', m.status('app','group','1001.1.0','token')[0])
+            self.assertIn('内部テスト可能', m.status('app','group','1001.1.0','token')[0])
 
     def test_unchanged_no_duplicate_changed_updates_parent(self):
         from datetime import datetime, timezone
