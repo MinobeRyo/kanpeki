@@ -9,6 +9,10 @@ on:
       - "Kanpeki.xcodeproj/**"
       - "Tests/CoreTests.swift"
       - "scripts/check.sh"
+      - "Sources/KanpekiCamera/**"
+      - "CameraTests/**"
+      - "Package.swift"
+      - ".github/workflows/ci.yml"
   workflow_call:
   workflow_dispatch:
 permissions:
@@ -28,6 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/check.sh "${{ matrix.check }}"
+      - if: matrix.check == 'core' && hashFiles('Package.swift') != ''
+        run: swift test
       - if: matrix.check == 'core'
         run: |
           python3 Tests/test_release.py

@@ -1,4 +1,5 @@
 import SwiftUI
+import KanpekiCamera
 import UIKit
 import Combine
 
@@ -66,6 +67,9 @@ struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
     @State private var showDetails = false
+    @StateObject private var camera = CameraController()
+    @State private var showCamera = false
+    @Environment(\.scenePhase) private var cameraScenePhase
     @State private var dragged = false
     @State private var touchStarted: Date?
     private let ink = Color(red: 92/255, green: 102/255, blue: 115/255)
@@ -115,6 +119,10 @@ struct PhoneScreen: View {
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }
+                if camera.phase == .running {
+                    Label("カメラ：\(camera.subject.title) · \(camera.summary.currentQuality)", systemImage: "video")
+                        .font(.caption).frame(maxWidth: .infinity, alignment: .leading)
+                }
                 if link.connectedName != nil {
                     TimelineView(.periodic(from: .now, by: 0.5)) { context in
                         let fresh = model.lastStateDate.map { context.date.timeIntervalSince($0) < 3 } ?? false
@@ -140,15 +148,31 @@ struct PhoneScreen: View {
                                 Text("スライドの右側をタップすると進み、左側で戻ります。")
                                 Text("ポインター送信・時間通知・音声分析は準備中です。")
                             }
+                            Section("カメラ") {
+                                Button("カメラの設定・結果") { showCamera = true }
+                                if camera.phase == .running { Text("\(camera.subject.title) · \(camera.summary.currentQuality)") }
+                            }
                             Section("接続") { Text(link.status); Text(model.state.message); Text(model.state.notesStatus) }
                             if link.connectedName != nil {
                                 Button("Macとの接続を切る", role: .destructive) { model.stop(); showDetails = false }
                             }
                         }.navigationTitle("接続と操作")
                             .toolbar { Button("閉じる") { showDetails = false } }
+                            .sheet(isPresented: $showCamera) {
+                                NavigationStack {
+                                    CameraPanel(controller: camera, onContinueWithoutAnalysis: { showCamera = false })
+                                        .toolbar { Button("戻る") { showCamera = false } }
+                                }
+                            }
                     }
                 }
         }.tint(ink).preferredColorScheme(.light)
+        .onChange(of: cameraScenePhase) { _, phase in
+            if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {
+                camera.stop(interrupted: true)
+            }
+        }
+        .onDisappear { camera.stop() }
     }
 
     private func turn(_ action: RemoteAction, fresh: Bool) {
