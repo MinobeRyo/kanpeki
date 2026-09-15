@@ -172,13 +172,17 @@ struct MacScreen: View {
             }
                 }.padding(28)
             }
-        }.frame(minWidth: 860, minHeight: 620)
+        }
+    }
+
+    private var styledContent: some View {
+        mainContent.frame(minWidth: 860, minHeight: 620)
             .background(mint).foregroundStyle(ink).tint(ink).preferredColorScheme(.light)
             .background { if navigation.current == .presentation { MacSlideKeyboard(model: model, onNarrowWindow: {}).frame(width: 0, height: 0) } }
     }
 
     private var routedContent: some View {
-        mainContent
+        styledContent
             .task { await capture.refreshWindows(); if !link.running { link.start() }; syncAudioConnection() }
             .onChange(of: audio.receiving) { _, _ in syncAudioConnection() }
             .onChange(of: audio.addresses) { _, _ in syncAudioConnection() }
@@ -194,7 +198,10 @@ struct MacScreen: View {
                 audio: { navigation.open(.audio) }, practice: { showPractice = true }, home: { navigation.home() },
                 pause: { if presenting { model.timerAction(model.state.timer?.phase == .running ? .pause : .resume, duration: nil) } },
                 end: { if presenting { endingSession = model.state.timer?.sessionID } }))
-            .sheet(isPresented: $showDocument) {
+    }
+
+    private var presentedContent: some View {
+        routedContent.sheet(isPresented: $showDocument) {
                 VStack(alignment: .leading, spacing: 12) {
                     Button("戻る", systemImage: "chevron.left") { showDocument = false }
                     if let deck = model.deck { DocumentPreview(url: deck.url).id(model.documentRevision) }
@@ -245,7 +252,7 @@ struct MacScreen: View {
     }
 
     private var observedContent: some View {
-        routedContent
+        presentedContent
             .onChange(of: camera.result) { _, _ in shareCameraEvidence() }
             .onChange(of: model.state.timer) { _, _ in shareCameraEvidence() }
             .onDisappear { camera.stop(); model.cancelPresentationStart() }
@@ -254,7 +261,10 @@ struct MacScreen: View {
             .onChange(of: model.state.timer?.phase) { _, phase in
                 if phase == .ended { camera.stop() }
             }
-            .sheet(item: $adjustment) { draft in
+    }
+
+    private var adjustedContent: some View {
+        observedContent.sheet(item: $adjustment) { draft in
                 TimeAdjustmentFlow(initialSeconds: draft.snapshot.durationSeconds,
                     canApply: { canAdjust(draft) }, apply: { seconds in
                         guard canAdjust(draft) else { return false }
@@ -288,7 +298,7 @@ struct MacScreen: View {
     }
 
     var body: some View {
-        observedContent
+        adjustedContent
             .confirmationDialog("発表を終了しますか？", isPresented: Binding(get: { endingSession != nil }, set: { if !$0 { endingSession = nil } }), titleVisibility: .visible) {
                 Button("発表を終了", role: .destructive) {
                     if let id = endingSession, model.state.timer?.sessionID == id { model.timerAction(.end, duration: nil) }
