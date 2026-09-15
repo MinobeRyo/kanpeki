@@ -38,6 +38,7 @@ MCPサーバー・ChatGPTのカスタム接続は既存の[設定](MCP_INTEGRATI
 
 - `PresentationState.audioConnection` は任意項目。LAN IPv4・HTTP・ポート・トークンを検証し、受信停止時は削除する。MCPの分析材料やログに接続コードを含めない。旧手動試験入口も保持。
 - `isPractice` は画面共有なしでの練習を示す。通常の発表開始の画面確認は維持し、練習もMac正本タイマーと同じ発表IDを使用する。
+- 練習の時間入力は開いた時点の発表ID・設定revision・接続世代を固定する。確認中にいずれかが変わった場合や資料読込・発表開始/終了処理中は適用できない。閉じて現在の設定から開き直す。
 - `Tests/IntegratedPracticeTests.swift` / `scripts/check_integrated_practice.py` は実MacModelの開始・終了、同発表の音声根拠、MCP依頼、リセットを合成peerで確認する。先に `bash scripts/check.sh mac` が必要。
 - core/署名回帰、Mac/iPhoneビルド、MCP SDK往復、資料回帰を検証。NSHostingViewのホーム・終了後描画に加え、実Macアプリでホーム→練習、既存モデル取込み→受信開始→QR接続案内を確認した。実iPhoneの録音は未確認。
 - 実iPhoneのマイク・Wi-Fi・権限、実ChatGPTの新ツール返却・助言品質、TestFlightのインストールは別途確認。連続送信・リアルタイム通知・正確な音声/スライド時計同期はまだ未実装で、今回取り込んだbranchにも完成実装はない。

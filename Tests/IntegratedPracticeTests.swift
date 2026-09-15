@@ -45,6 +45,21 @@ import KanpekiAudioHost
         model.timerAction(.reset, duration: nil)
         precondition(model.state.timer?.sessionID != id && !model.sharedAudioAvailable)
         precondition(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("practice-request.json").path))
+        let timeDraft = MacPreparationDraft(timer: model.state.timer!, connectionID: model.preparationConnectionID)
+        precondition(model.canAdjustRehearsalTime(timeDraft))
+        model.timerAction(.configure, duration: 120)
+        precondition(!model.canAdjustRehearsalTime(timeDraft), "A changed revision must reject the old time confirmation")
+        let currentDraft = MacPreparationDraft(timer: model.state.timer!, connectionID: model.preparationConnectionID)
+        precondition(model.canAdjustRehearsalTime(currentDraft))
+        var otherSession = currentDraft.timer
+        otherSession.sessionID = UUID()
+        precondition(!model.canAdjustRehearsalTime(MacPreparationDraft(timer: otherSession, connectionID: currentDraft.connectionID)), "Another presentation must reject the time confirmation")
+        model.importing = true
+        precondition(!model.canAdjustRehearsalTime(currentDraft), "Importing must block time changes")
+        model.importing = false
+        model.link.onConnection?(false)
+        precondition(!model.canAdjustRehearsalTime(currentDraft), "A changed connection generation must reject the time confirmation")
+        print("PASS: rehearsal time confirmation rejects changed revision/session/connection and busy preparation")
         model.updateAudioConnection(address: nil, token: "")
         precondition(model.state.audioConnection == nil)
         model.stopMCP()

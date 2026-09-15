@@ -8,7 +8,7 @@ struct RehearsalFlow: View {
     var connect: () -> Void
     var feedback: () -> Void
     var audioDetails: () -> Void
-    @State private var showTime = false
+    @State private var timeDraft: MacPreparationDraft?
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("練習する").font(.largeTitle.bold())
@@ -47,7 +47,11 @@ struct RehearsalFlow: View {
             }
             if let error = audio.error { Text(error).foregroundStyle(.red) }
             Menu("設定・その他") {
-                Button("時間を調整") { showTime = true }.disabled(model.state.timer?.phase != .ready)
+                Button("時間を調整") {
+                    guard let timer = model.state.timer else { return }
+                    let draft = MacPreparationDraft(timer: timer, connectionID: model.preparationConnectionID)
+                    if model.canAdjustRehearsalTime(draft) { timeDraft = draft }
+                }.disabled(model.state.timer?.phase != .ready)
                 Button("資料を選ぶ") { model.importDeck() }.disabled(!model.notesReady)
                 Button("取得済みモデルを選ぶ") { audio.chooseModel() }.disabled(audio.receiving || audio.preparing)
                 Button("音声の結果・接続設定", action: audioDetails)
@@ -65,13 +69,23 @@ struct RehearsalFlow: View {
             Spacer()
         }.padding(32).frame(maxWidth: .infinity, alignment: .leading)
             .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 24))
-            .sheet(isPresented: $showTime) {
-                TimeAdjustmentFlow(initialSeconds: model.state.timer?.durationSeconds, canApply: {
-                    model.state.timer?.phase == .ready && !model.timerFinishing
+            .sheet(item: $timeDraft) { draft in
+                TimeAdjustmentFlow(initialSeconds: draft.timer.durationSeconds, canApply: {
+                    model.canAdjustRehearsalTime(draft)
                 }, apply: { seconds in
-                    guard model.state.timer?.phase == .ready else { return false }
+                    guard model.canAdjustRehearsalTime(draft) else { return false }
                     model.timerAction(.configure, duration: seconds); return true
                 })
             }
+    }
+}
+
+extension MacModel {
+    func canAdjustRehearsalTime(_ draft: MacPreparationDraft) -> Bool {
+        !presentationStarting && !timerFinishing && !importing && !openingDocument &&
+        state.timer?.phase == .ready && draft.timer.phase == .ready &&
+        state.timer?.sessionID == draft.timer.sessionID &&
+        state.timer?.revision == draft.timer.revision &&
+        preparationConnectionID == draft.connectionID
     }
 }
