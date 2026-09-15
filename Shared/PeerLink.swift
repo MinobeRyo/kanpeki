@@ -68,10 +68,10 @@ final class PeerLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbySer
     func suspend() { resumeAfterForeground = running; stop() }
     func resume() { if resumeAfterForeground { resumeAfterForeground = false; start() } }
     func selectQRAddress(_ address: String) { direct.selectAddress(address) }
-    func showQR() {
+    func showQR(refresh: Bool = false) {
         guard isHost, connectedName == nil, approval.operationID == nil, directOperation == nil else { return }
         if !running { start() }
-        direct.listen(name: localPeer.displayName)
+        direct.listen(name: localPeer.displayName, refresh: refresh)
     }
     func connectQR(_ text: String) {
         guard !isHost else { return }

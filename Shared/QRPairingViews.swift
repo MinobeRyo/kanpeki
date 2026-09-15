@@ -27,10 +27,10 @@ struct QRPairingSheet: View {
             } else {
                 Text("Wi-FiにつないでQRを表示してください").padding()
             }
-            Button("QRを更新") { addresses = PairingTicket.addresses(); address = addresses.first ?? ""; link.showQR() }
+            Button("QRを更新") { addresses = PairingTicket.addresses(); address = addresses.first ?? ""; link.showQR(refresh: true) }
                 .disabled(link.connectedName != nil || link.invitation != nil)
         }.padding(24).frame(width: 420)
-            .onAppear { address = addresses.first ?? ""; link.showQR() }
+            .onAppear { address = link.pairingTicket?.host ?? addresses.first ?? ""; link.showQR() }
             .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitation != nil }, set: { _ in }), presenting: link.invitation) { invitation in
                 Button("許可") { link.respondToInvitation(accept: true, invitationID: invitation.id) }
                 Button("拒否", role: .cancel) { link.respondToInvitation(accept: false, invitationID: invitation.id) }

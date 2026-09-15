@@ -11,7 +11,11 @@ struct PairingTicket: Codable, Equatable {
     let key: Data
     let name: String
     let expires: Date
-    var text: String { "kanpeki://pair/" + ((try? JSONEncoder().encode(self)) ?? Data()).base64EncodedString() }
+    var text: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return "kanpeki://pair/" + ((try? encoder.encode(self)) ?? Data()).base64EncodedString()
+    }
     static func parse(_ text: String, now: Date = Date()) -> PairingTicket? {
         let prefix = "kanpeki://pair/"
         guard text.hasPrefix(prefix), text.utf8.count < 4096,
@@ -90,7 +94,10 @@ final class DirectPairing {
         return NWParameters(tls: tls, tcp: tcp)
     }
 
-    func listen(name: String, address: String? = nil) {
+    func listen(name: String, address: String? = nil, refresh: Bool = false) {
+        // View reappearance must not revoke a scanned capability or cancel a handshake.
+        guard connection == nil else { return }
+        if !refresh, listener != nil, expires > Date() { return }
         stop()
         hostName = name; selectedAddress = address
         key = Data(count: 32)
@@ -118,7 +125,10 @@ final class DirectPairing {
             expiry = work; DispatchQueue.main.asyncAfter(deadline: .now() + 600, execute: work)
         } catch { onEnd?("QR接続を開始できませんでした") }
     }
-    func selectAddress(_ address: String) { selectedAddress = address; publishTicket() }
+    func selectAddress(_ address: String) {
+        guard connection == nil, PairingTicket.validLocalIPv4(address), selectedAddress != address else { return }
+        selectedAddress = address; publishTicket()
+    }
     private func publishTicket() {
         guard let port = listener?.port, let ip = selectedAddress ?? PairingTicket.addresses().first else { onTicket?(nil); return }
         onTicket?(PairingTicket(version: 1, host: ip, port: port.rawValue, key: key, name: hostName, expires: expires))
