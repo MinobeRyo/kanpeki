@@ -99,7 +99,8 @@ import Combine
             PhoneScreen(model: model, link: model.link)
                 .onChange(of: phase) { _, value in
                     UIApplication.shared.isIdleTimerDisabled = value == .active
-                    if value == .background { model.stop() }
+                    if value == .background { model.link.suspend() }
+                    if value == .active { model.link.resume() }
                 }
         }
     }
@@ -109,6 +110,7 @@ struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
     @State private var showDetails = false
+    @State private var showQRScanner = false
     @State private var showAudioTrial = false
     @State private var showPresentationAudio = false
     @StateObject private var audioRecorder = RecorderModel()
@@ -176,8 +178,12 @@ struct PhoneScreen: View {
                                         model.stop(); link.start()
                                     }.buttonStyle(.bordered).controlSize(.large)
                                 }
-                                Text(link.availablePeers.isEmpty ? "Macで接続待機を開始" : "接続するMacを選択")
-                                    .font(.caption).foregroundStyle(.secondary)
+                                Button("QRでつなぐ", systemImage: "qrcode.viewfinder") { showQRScanner = true }
+                                    .buttonStyle(.bordered).controlSize(.large)
+                                Text(link.status).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                                if !link.incompatiblePeers.isEmpty {
+                                    Text("別の通信版のMacがあります。両方のアプリを更新してください").font(.caption)
+                                }
                                 Spacer(minLength: 24)
                             }.frame(maxWidth: .infinity, minHeight: geometry.size.height)
                         }
@@ -218,6 +224,8 @@ struct PhoneScreen: View {
             }.padding(16).background(mint.ignoresSafeArea())
                 .foregroundStyle(ink)
                 .toolbar(.hidden, for: .navigationBar)
+                .task { if !link.running { link.start() } }
+                .sheet(isPresented: $showQRScanner) { QRScannerSheet { link.connectQR($0) } }
                 .sheet(isPresented: $showDetails, onDismiss: {
                     if audioAfterDetails { audioAfterDetails = false; showAudioTrial = true }
                     if reviewAfterDetails {
