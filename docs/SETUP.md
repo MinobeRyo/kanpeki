@@ -1,6 +1,6 @@
 # 初期セットアップの検証記録
 
-2026-09-08時点。
+移植元の2026-09-08時点の記録。以下の旧Issue番号・Actionsの番号は現リポジトリの同番号と対応するとは限らず、現状確認の入口にはしない。[現在の状態](STATUS.md)、[移植元と出所](MIGRATION.md)、[現行マージ手順](MERGE.md)を参照。
 
 - 非公開リポジトリ: https://github.com/MinobeRyo/kanpeki
 - ini-ei / MinobeRyo: write権限で招待済み、受諾は本人の操作待ち。

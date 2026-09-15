@@ -18,7 +18,9 @@ PRマージの通知と、テスターがアプリを開ける通知を分ける
 
 所有者／管理者と対象チャンネル・アプリ権限を確認し、許可されたテスト投稿でメンション→返信、マージ→通知、配布可能→リンク通知を別々に確認する。必要なSecretsはGitHubの承認された保存先へ登録し、文書に値を書かない。
 
-## 今回の共有用文面（未送信）
+## 移植時の共有用文面（履歴・未送信）
+
+現在のアプリ実装・配布状態には使用しない。[STATUS](STATUS.md)を参照。
 
 カンペきの仕様・画面案・開発ルールを新リポジトリに集約しました。
 まずREADMEから担当機能と未決定事項を確認してください。アプリ実装・配布接続はこれからです。
@@ -28,7 +30,7 @@ https://github.com/MinobeRyo/kanpeki
 
 - `.github/workflows/slack-merge.yml`：mainへマージしたPR→短い親投稿＋変更点スレッド。
 - `.github/workflows/slack-progress.yml`：team.pyの正規のIssue進捗報告→短い投稿。
-- `.github/workflows/slack-release.yml`：配布結果。Apple側の確認用設定を揃えてから別途有効化。
+- `.github/workflows/slack-release.yml`：両アプリの配布結果・内部状態の定期確認。実行根拠は[STATUS](STATUS.md)。
 
 Repository Secret: `SLACK_BOT_TOKEN`。Repository Variables: `SLACK_CHANNEL_ID`、`SLACK_MERGE_ENABLED=true`、`SLACK_PROGRESS_ENABLED=true`。
 手動再送はActionsのMerged PR to Slackで対象PR番号を指定する。先にSlackを確認して重複を避ける。親だけ届いてスレッドが失敗した場合も全体再送の前に確認する。

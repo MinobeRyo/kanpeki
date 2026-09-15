@@ -1,16 +1,16 @@
-> 移植元の操作説明。現在の有効化・検証状況はMIGRATION.mdとSLACK.mdを優先する。
+> 2026-09-15更新：現行は両アプリの内部TestFlight状態を定期確認する。実行根拠は[STATUS](STATUS.md)、配布手順は[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)。
 
 # Slack配布通知
 
-CD終了時に、親メッセージへ対象バージョン・ビルド番号・Appleの外部配布状態・CI結果を投稿し、スレッドへ変更点（PRタイトル最大3件）と短い実機確認項目を返信する。失敗したCDも対象。Apple APIで対象ビルドと外部グループへの割当を照合し、成功ログだけで「配布可能」と表示しない。
+CD終了時に、親メッセージへ対象バージョン・ビルド番号・Appleの内部配布状態・CI結果を投稿し、スレッドへ変更点（PRタイトル最大3件）と短い実機確認項目を返信する。失敗したCDも対象。Apple APIで対象ビルドと内部グループへの割当を照合し、成功ログだけで「配布可能」と表示しない。
 
 ボタンはアプリ・CD結果・変更コミットを開く。TestFlightのテスター向けURLを検証して登録した場合だけ、TestFlightボタンを追加する。URLがない段階では招待メール/インストール済みTestFlightから開く。Slackのリンクを押すだけでアプリのインストールや端末の現在バージョン取得は行わない。
 
 ## 初回接続
 
 1. Slackの対象ワークスペースで通知用Botを作成/インストールし、Bot Token Scopeはchat:write。Botを通知先チャンネルへ招待する。全チャンネルの履歴閲覧権限は不要。
-2. GitHub environment `testflight` Secret `SLACK_BOT_TOKEN`にBotトークンを登録する。トークンをチャット・PR・gitへ貼らない。
-3. 同environment Variable `SLACK_CHANNEL_ID`を登録。必要なら `TESTFLIGHT_TESTER_URL`へ動作検証したAppleのHTTPSリンクを登録する。公開招待リンクは自動作成しない。
+2. GitHub repository Secret `SLACK_BOT_TOKEN`にBotトークンを登録する。トークンをチャット・PR・gitへ貼らない。
+3. repository Variable `SLACK_CHANNEL_ID`を登録。必要なら `TESTFLIGHT_TESTER_URL`へ動作検証したAppleのHTTPSリンクを登録する。公開招待リンクは自動作成しない。
 4. **repository variable** `SLACK_NOTIFY_ENABLED=true`で有効化。未設定では通知ジョブをスキップする。
 5. Slack release notificationをworkflow_dispatchで最新の完了済みCD run ID指定で実行し、親＋スレッドとボタン遷移を確認する。重複がないことを確認してから再送する。
 
@@ -20,7 +20,7 @@ CD終了時に、親メッセージへ対象バージョン・ビルド番号・
 
 ## 状態と制限
 
-通知はその対象ビルドの投稿時点のスナップショット。Apple審査が後から進んでも自動更新しない。更新通知が必要なら同じCD IDで状態を再取得して投稿できるが重複確認が必要。クリック時のSlack本文更新には別途Slackインタラクションの受信サーバーが必要で、この構成には含まない。通知のリンク先では現在の情報を確認できる。
+通知はCD完了後と毎時に確認し、変化があれば元投稿を更新する。キャッシュ失効や不確かな送信は重複確認が必要。クリック時のSlack本文更新には別途Slackインタラクションの受信サーバーが必要で、この構成には含まない。通知のリンク先では現在の情報を確認できる。
 
 Slack障害はCDと別のworkflowで失敗するためアップロード結果を変更しない。親投稿成功・返信失敗の可能性があるため、POST失敗時に無条件再試行しない。CIログには投稿本文・署名情報を出さない。
 
@@ -31,7 +31,9 @@ Slack障害はCDと別のworkflowで失敗するためアップロード結果�
 配布通知とは別に `SLACK_PROGRESS_ENABLED=true`（repository variable）でteam.pyの進捗コメントを転記できる。Slack Botとチャンネルは既存設定を共用。進捗から実装AIを再起動しない。入力側の公式@Codex接続、壁打ち、役割整理は[AI_TEAM.md](AI_TEAM.md)。
 
 
-## アプリをすぐ確認する
+## 移植元のアプリ確認手順（履歴）
+
+以下の公開リンク/DMG説明は2026-09-14時点。現行の内部TestFlightは[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)を優先する。
 
 2026-09-14、公開チャンネル89_codexハッカソンへの進捗/変更内容共有はユーザー承認済み。通知Botの参加と実送信は確認済み。TestFlight参加リンクをtestflight環境変数TESTFLIGHT_TESTER_URLに登録した。
 

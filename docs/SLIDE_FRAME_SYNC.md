@@ -18,7 +18,7 @@
 - 既存の暗号化MultipeerConnectivityと明示的接続承認を維持。未ACKフレームは1枚まで。受信側は状態不一致で表示しないフレームもACKし、古い1枚で転送を詰まらせない。独自の再送/画像キューは追加しない。
 - delegateからmainへ渡すstate/frame/ACKは接続世代を確認し、切断・再接続以前にキューへ入ったcallbackを新接続で適用しない。
 - 戻る/進むには表示中`frameIdentity`を添え、Macは現在のidentityと一致する場合だけ受ける。実行前のPowerPoint位置も読み、表示画像のページと異なる場合は操作せず再同期する。
-- discovery/contextをv2へ更新して、identityを理解しない旧Mac/iPhoneとの混在接続を受け付けない。**両アプリを同じ対応版へ更新する必要がある**。JSONの任意フィールド互換だけで旧画像を安全と扱わない。QR/WebSocket移行ではない。
+- discovery/contextをv2へ更新して、identityを理解しない旧Mac/iPhoneとの混在接続を受け付けない。**両アプリを同じ対応版へ更新する必要がある**。JSONの任意フィールド互換だけで旧画像を安全と扱わない。この画像対応付け自体はQR/WebSocket移行ではない。後続PR #71のQR直接TLS経路は同じ画像/ACK契約を使用する（[QR_CONNECTION](QR_CONNECTION.md)）。
 
 ## 限界・残件
 
