@@ -16,7 +16,7 @@ PRの必要チェック→mainへ統合→TestFlight CDのLinux事前確認→�
 - Apple Secrets: `ASC_KEY_ID`、`ASC_ISSUER_ID`、`ASC_KEY_P8_BASE64`。
 - iPhone署名: `IOS_DISTRIBUTION_P12_BASE64`、`IOS_DISTRIBUTION_P12_PASSWORD`、`IOS_APPSTORE_PROFILE_BASE64`。
 - Mac署名: 共用Apple Distributionに加え`MAC_APPSTORE_PROFILE_BASE64`、`MAC_INSTALLER_P12_BASE64`、`MAC_INSTALLER_P12_PASSWORD`。
-- Slack: repositoryの`SLACK_BOT_TOKEN`、`SLACK_CHANNEL_ID`。内部テストの案内は[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)。
+- Slack: repository Secretの`SLACK_BOT_TOKEN`、repository Variableの`SLACK_CHANNEL_ID`。内部テストの案内は[AUTOMATIC_DELIVERY](AUTOMATIC_DELIVERY.md)。
 
 証明書・契約・対象アプリの変更は権限と影響を確認する。既存証明書を勝手に失効させない。Base64は暗号化ではない。秘密値はGit/Issue/チャットへ保存しない。
 

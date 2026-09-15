@@ -1,6 +1,6 @@
 # 実装・残件・検証のスナップショット
 
-確認日：2026-09-15 13:45 JST。基準main：`b5529b9c9307ce4c7689f2ea5c0e3584213ff1e0`。常時最新の担当・配布状態を保証する一覧ではない。作業状況は[最新Issues](https://github.com/MinobeRyo/kanpeki/issues)、統合状態は各PR、配布は対象コミット・ビルド番号で再確認する。[全文書の棚卸し](DOCUMENTATION_INVENTORY.md)。
+確認日：2026-09-15 13:31 JST。基準main：`55203136881f30be6d841eaaa46856e41c907d0d`。常時最新の担当・配布状態を保証する一覧ではない。作業状況は[最新Issues](https://github.com/MinobeRyo/kanpeki/issues)、統合状態は各PR、配布は対象コミット・ビルド番号で再確認する。[全文書の棚卸し](DOCUMENTATION_INVENTORY.md)。
 
 ## mainにある機能
 
@@ -8,9 +8,9 @@
 
 | 機能 | mainの範囲と根拠 | 残件 |
 |---|---|---|
-| ブランド・基本UI | ロゴ組込み、少数色、下部スライド、原稿スクロール。[BRAND_UI](BRAND_UI.md)、[Issue #24](https://github.com/MinobeRyo/kanpeki/issues/24) | 画面確認モードの固定・翻訳・改善例はサンプル。実UI受入 #10、簡素化 #66 |
+| ブランド・基本UI | ロゴ組込み、少数色、下部スライド、原稿スクロール。[BRAND_UI](BRAND_UI.md)、[Issue #24](https://github.com/MinobeRyo/kanpeki/issues/24) | 画面確認モードの固定・翻訳・改善例はサンプル。iPhoneの簡素化はPR #70で統合済み（[MINIMAL_UI](../specs/MINIMAL_UI.md)）。全画面実UI受入 #10/#66は別 |
 | PPTX・PowerPoint | 保存済PPTXノート、実ページ観測、操作、資料不一致保護。[検証範囲](POWERPOINT_VALIDATION.md) | 実PowerPoint・権限・複数画面 #21 |
-| 画像・通信 | 暗号化MultipeerConnectivity。資料/page/capture identityで画像と操作を照合。[PR #54](https://github.com/MinobeRyo/kanpeki/pull/54)、[仕様](SLIDE_FRAME_SYNC.md) | 実遅延/再接続/遷移描画 #20。QR/WebSocket完成とは別 #19/#65 |
+| 画像・通信 | 暗号化MultipeerConnectivity。資料/page/capture identityで画像と操作を照合。[PR #54](https://github.com/MinobeRyo/kanpeki/pull/54)、[仕様](SLIDE_FRAME_SYNC.md) | 実遅延/再接続/遷移描画 #20。QR直接TLS接続と1台承認はPR #71/#64で統合済み。[QR](QR_CONNECTION.md)・[承認](PEER_APPROVAL.md)。実機受入 #19/#65、WebSocketは別 |
 | ポインター | 移動→Mac overlay、旧session/範囲/期限切れ拒否。[仕様](POINTER_DEVELOPMENT.md) | 手ぶれ閾値・実投影/VoiceOver #16 |
 | 時間・通知 | Mac正本の開始/停止/再開/終了、期限1回通知、入力→確認→適用。[タイマー](../specs/PRESENTATION_TIMER.md)、[通知](../specs/PRESENTATION_NOTIFICATIONS.md)、[段階入力](../specs/STEPWISE_SETUP.md) | 実端末振動・背景復帰 #11/#18。音声通知は未接続 #41 |
 | カメラ | 任意開始、対象/前後選択、顔向き/うなずき候補、未計測、UUID保護、端末内集計・時間帯。[PR #59](https://github.com/MinobeRyo/kanpeki/pull/59)、[PR #62](https://github.com/MinobeRyo/kanpeki/pull/62)、[仕様](../specs/CAMERA_ANALYSIS.md) | 笑顔判定・実会場精度/熱/長時間 #14。生映像保存・端末間合算は範囲外 |
@@ -23,10 +23,10 @@
 | PR・確認head | 内容 | 限界 |
 |---|---|---|
 | [#58](https://github.com/MinobeRyo/kanpeki/pull/58) `1283343` | 資料MCP実験＋発表全体の音声/カメラ根拠集約・返却・Mac/iPhone振り返り | [push報告](https://github.com/MinobeRyo/kanpeki/issues/33#issuecomment-5674648100)済み。事前資料分析のiPhone適用とは別経路。実ChatGPT新ツール返却・実機・配布は未検証 |
-| [#64](https://github.com/MinobeRyo/kanpeki/pull/64) `75ff6f8` | 1台承認・旧招待/通信の拒否 #19 | 実ペアリング受入は別 |
+
 | [#67](https://github.com/MinobeRyo/kanpeki/pull/67) `97f4e3f` | Mac準備カード・確認付き開始・共有復旧・案内保存 #61 | CI成功報告。実PowerPoint/権限/狭幅/操作一巡は未検証。「最大3操作」全達成ではない |
-| [#70](https://github.com/MinobeRyo/kanpeki/pull/70) `e7eb34f` | iPhone接続・時間入力簡素化 #66 | 現行操作と混ぜない |
-| [#71](https://github.com/MinobeRyo/kanpeki/pull/71) `66bc7b9` | Mac未発見時のQR直接接続 #65 | 実ネットワーク到達性は別 |
+
+
 | [#72](https://github.com/MinobeRyo/kanpeki/pull/72) `ad23c4c` | Mac内Whisper/受信/接続コード #63 | mainのPython手順をまだ置換しない。実端末・framework署名/配布確認はPR参照 |
 | [#73](https://github.com/MinobeRyo/kanpeki/pull/73) `4af8e58` | 引用・数値・列挙・否定保持 #68 | 合成回帰と実資料品質を区別 |
 
