@@ -1,0 +1,76 @@
+name: TestFlight CD
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: kanpeki-testflight
+  cancel-in-progress: false
+jobs:
+  checks:
+    if: vars.IOS_TESTFLIGHT_ENABLED == 'true' && vars.NATIVE_CI_ENABLED == 'true'
+    uses: ./.github/workflows/ci.yml
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: checks
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: testflight
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      FASTLANE_SKIP_UPDATE_CHECK: '1'
+      FASTLANE_HIDE_CHANGELOG: '1'
+      FASTLANE_OPT_OUT_USAGE: '1'
+      FASTLANE_DISABLE_COLORS: '1'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reject stale commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh api repos/$GITHUB_REPOSITORY/commits/main --jq .sha)
+          test "$latest" = "$GITHUB_SHA" || { echo 'main has moved. Release its latest run instead.'; exit 1; }
+      - name: Prepare signing material
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+          IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+          IOS_APPSTORE_PROFILE_BASE64: ${{ secrets.IOS_APPSTORE_PROFILE_BASE64 }}
+          TESTFLIGHT_EXTERNAL_GROUP: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP }}
+        run: python3 scripts/prepare_release.py
+      - name: Create temporary keychain
+        env:
+          P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+        run: |
+          keychain_password=$(openssl rand -hex 32)
+          echo "::add-mask::$keychain_password"
+          security create-keychain -p "$keychain_password" "$RELEASE_DIR/signing.keychain-db"
+          security set-keychain-settings -lut 3600 "$RELEASE_DIR/signing.keychain-db"
+          security unlock-keychain -p "$keychain_password" "$RELEASE_DIR/signing.keychain-db"
+          security import "$RELEASE_DIR/distribution.p12" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security -t cert -f pkcs12 -k "$RELEASE_DIR/signing.keychain-db"
+          security list-keychains -d user -s "$RELEASE_DIR/signing.keychain-db"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$RELEASE_DIR/signing.keychain-db" >/dev/null
+          security find-identity -v -p codesigning "$RELEASE_DIR/signing.keychain-db" | grep 'Apple Distribution:'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Install pinned Fastlane
+        run: gem install fastlane -v 2.238.0 --no-document
+      - name: Archive, upload and submit to team testing
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          TESTFLIGHT_EXTERNAL_GROUP: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP }}
+        run: fastlane ios beta
+      - name: Clean signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/kanpeki-release/signing.keychain-db" 2>/dev/null || true
+          python3 scripts/prepare_release.py --cleanup

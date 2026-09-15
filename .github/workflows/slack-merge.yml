@@ -1,0 +1,36 @@
+name: Merged PR to Slack
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Merged PR number (check Slack before resending)
+        required: true
+permissions:
+  contents: read
+  pull-requests: read
+concurrency:
+  group: slack-merge-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+jobs:
+  notify:
+    if: >-
+      vars.SLACK_MERGE_ENABLED == 'true' &&
+      github.run_attempt == 1 &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Notify merge and summarize changes in thread
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: python3 scripts/slack_merge.py

@@ -1,0 +1,11 @@
+.build/
+dist/
+.env
+.env.*
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.provisionprofile
+__pycache__/
+.DS_Store

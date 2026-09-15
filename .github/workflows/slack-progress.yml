@@ -1,0 +1,33 @@
+name: AI progress to Slack
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+concurrency:
+  group: slack-progress-${{ github.event.comment.id }}
+  cancel-in-progress: false
+jobs:
+  progress:
+    if: >-
+      vars.SLACK_PROGRESS_ENABLED == 'true' &&
+      !github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '## ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Forward eligible report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
+          TESTFLIGHT_TESTER_URL: ${{ vars.TESTFLIGHT_TESTER_URL }}
+          MAC_TESTER_URL: ${{ vars.MAC_TESTER_URL }}
+        run: python scripts/slack_progress.py

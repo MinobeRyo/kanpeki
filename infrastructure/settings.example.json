@@ -1,0 +1,17 @@
+{
+  "repository": "YOUR_OWNER/YOUR_REPOSITORY",
+  "members": [
+    "takurateruyoshi",
+    "ini-ei",
+    "MinobeRyo",
+    "mao-sonobe"
+  ],
+  "apple_team": null,
+  "phone_bundle": null,
+  "mac_bundle": null,
+  "phone_app_id": null,
+  "mac_app_id": null,
+  "phone_group_id": null,
+  "mac_group_id": null,
+  "signer_name": null
+}
