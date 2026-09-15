@@ -1,0 +1,25 @@
+name: Documentation impact
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: documentation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test documentation policy
+        run: python3 -m unittest discover -s Tests -p 'test_documentation_check.py'
+      - name: Check PR declaration against changed documents
+        env:
+          DOCS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DOCS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/documentation_check.py --base "$DOCS_BASE_SHA" --head "$DOCS_HEAD_SHA" --event "$GITHUB_EVENT_PATH"
