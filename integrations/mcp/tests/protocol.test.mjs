@@ -15,7 +15,7 @@ test('SDK discovers tools and roundtrips source IDs while missing live data fail
  const timer=setInterval(()=>{void beat();},1000);t.after(()=>clearInterval(timer));
  const transport=new StdioClientTransport({command:process.execPath,args:[resolve('server.mjs'),'--stdio'],env:{...process.env,KANPEKI_MCP_DIR:directory},stderr:'pipe'});
  const client=new Client({name:'kanpeki-regression',version:'1.0.0'});t.after(()=>client.close());await client.connect(transport);
- const tools=await client.listTools();assert.deepEqual(tools.tools.map(x=>x.name).sort(),['get_analysis_status','get_live_state','get_practice_report','get_presentation','submit_analysis']);
+ const tools=await client.listTools();assert.deepEqual(tools.tools.map(x=>x.name).sort(),['get_analysis_status','get_live_state','get_practice_report','get_presentation','submit_analysis','submit_practice_analysis']);
  const read=await client.callTool({name:'get_presentation',arguments:{source:'preparation'}});assert.ok(!read.isError);const data=JSON.parse(read.content[0].text);assert.equal(data.pages[0].body,'Measured 20; not production verified');assert.equal(data.requestID,requestID);
  assert.equal((await client.callTool({name:'get_live_state',arguments:{}})).isError,true);
  const result={requestID,direction:{focusPages:[1],supportingPages:[]},selections:[{slideIndex:1,selection:{coreIDs:['s1b1'],detailIDs:[],role:'evidence',priority:5}}]};

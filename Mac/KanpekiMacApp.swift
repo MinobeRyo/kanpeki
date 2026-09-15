@@ -102,6 +102,8 @@ struct MacScreen: View {
                     }
                 }.padding(24).frame(width: 520)
             }
+            .onChange(of: camera.result) { _, _ in shareCameraEvidence() }
+            .onChange(of: model.state.timer) { _, _ in shareCameraEvidence() }
             .onDisappear { camera.stop() }
             .modifier(PresentationResultsObserver(snapshot: model.state.timer, connected: true,
                 camera: camera, association: $presentationResult))
@@ -115,6 +117,12 @@ struct MacScreen: View {
             .alert("確認が必要です", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
                 Button("OK") { model.errorMessage = nil }
             } message: { Text(model.errorMessage ?? "") }
+    }
+
+    private func shareCameraEvidence() {
+        let cameraID = presentationResult.sessionID == model.state.timer?.sessionID ? presentationResult.cameraID : nil
+        let facts = CameraAnalysisEvidence.facts(camera: camera, prefix: "macCamera", associatedCameraID: cameraID)
+        model.updateCameraAnalysis(facts, presentationID: facts.isEmpty ? nil : model.state.timer?.sessionID)
     }
 
     private var preparation: some View {
@@ -163,8 +171,14 @@ struct MacScreen: View {
                 GroupBox("ChatGPTで相談") {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(model.mcpStatus).font(.caption)
-                        Button("資料と発表状況の共有を開始") { model.startMCP() }
+                        Button("分析データの共有を開始") { model.startMCP() }
                         Button("ChatGPTとの共有を停止") { model.stopMCP() }
+                        Text("音声認識結果・カメラの集計値も共有します。").font(.caption)
+                        Button("発表をまとめて分析・依頼文をコピー") { model.requestPracticeAnalysis() }
+                            .disabled(model.state.analysisSharingID == nil || model.state.timer?.phase != .ended || model.timerFinishing)
+                        Text("音声: \(model.sharedAudioAvailable ? "取得済み" : "未共有") · カメラ: \(model.sharedCameraAvailable ? "取得済み" : "未共有")").font(.caption)
+                        Text(model.practiceAnalysisStatus).font(.caption)
+                        PracticeFeedbackView(result: model.practiceAnalysis)
                         Link("ChatGPTを開く", destination: URL(string: "https://chatgpt.com/")!)
                     }
                 }

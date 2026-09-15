@@ -42,6 +42,23 @@ import Foundation
         let control = WireMessage(kind: "control", action: .next)
         let received = WireCodec.decode(try JSONEncoder().encode(control))
         expect(received?.action == .next && received?.requestID == control.requestID, "control request preserves identity")
+        let sharedID = UUID(), presentationID = UUID(), recordingID = UUID()
+        let audioFact = PracticeFact(id: "audio.\(recordingID.uuidString.lowercased()).status", kind: "audio", text: "文字起こし未計測")
+        let evidence = PhoneAnalysisEvidence(sharingID: sharedID, presentationID: presentationID,
+            sequence: 1, recordingID: recordingID, cameraID: nil, facts: [audioFact])
+        let evidenceMessage = WireMessage(kind: "analysisEvidence", analysisEvidence: evidence)
+        let evidenceData = try JSONEncoder().encode(evidenceMessage)
+        expect(WireCodec.decode(evidenceData)?.analysisEvidence == evidence, "analysis evidence wire roundtrip")
+        let emptyEvidenceData = try JSONEncoder().encode(WireMessage(kind: "analysisEvidence"))
+        expect(WireCodec.decode(emptyEvidenceData) == nil, "reject absent analysis payload")
+        let wrongRecording = PhoneAnalysisEvidence(sharingID: sharedID, presentationID: presentationID,
+            sequence: 1, recordingID: UUID(), cameraID: nil, facts: [audioFact])
+        expect(!wrongRecording.isValid, "source IDs must match recording ID")
+        var resultState = PresentationState()
+        resultState.practiceAnalysis = PracticeAnalysisResult(requestID: UUID(), presentationID: presentationID,
+            items: [PracticeAnalysisItem(kind: "limitation", text: "未計測です", evidenceIDs: [audioFact.id], sources: [audioFact.text])])
+        let mismatchedResultData = try JSONEncoder().encode(WireMessage(kind: "state", state: resultState))
+        expect(WireCodec.decode(mismatchedResultData) == nil, "reject analysis with no matching timer session")
         var dedup = RequestDeduplicator()
         expect(dedup.accept(control.requestID), "first request accepted")
         expect(!dedup.accept(control.requestID), "duplicate request rejected")

@@ -284,3 +284,42 @@ struct TimeAdjustmentFlow: View {
         #endif
     }
 }
+
+struct PracticeFeedbackView: View {
+    let result: PracticeAnalysisResult?
+    var body: some View {
+        if let result {
+            DisclosureGroup("ChatGPTの振り返り") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("計測結果に基づくAIの提案です。根拠を確認して採用してください。").font(.caption)
+                    ForEach(Array(result.items.enumerated()), id: \.offset) { _, item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(item.kind == "strength" ? "よかった点" : item.kind == "improvement" ? "次に試すこと" : "確認できないこと").font(.caption.bold())
+                            Text(item.text).textSelection(.enabled)
+                            DisclosureGroup("根拠") {
+                                ForEach(Array((item.sources ?? item.evidenceIDs).enumerated()), id: \.offset) { _, source in
+                                    Text(source).font(.caption).textSelection(.enabled)
+                                }
+                            }
+                        }
+                    }
+                }.padding(.vertical, 8)
+            }
+        }
+    }
+}
+
+/// Only scalar observations leave the device. Raw frames and face geometry stay local.
+enum CameraAnalysisEvidence {
+    static func facts(camera: CameraController, prefix: String, associatedCameraID: UUID?) -> [PracticeFact] {
+        guard let id = camera.result.id, id == associatedCameraID else { return [] }
+        let s = camera.summary
+        let key = "\(prefix).\(id.uuidString.lowercased())"
+        return [
+            PracticeFact(id: key + ".status", kind: "camera", text: "\(camera.subject.title)のカメラ: \(camera.result.status.message)。撮影全体の集計です。発表・録音時刻との同期や、発表開始前の区間の除外はしていません。"),
+            PracticeFact(id: key + ".coverage", kind: "camera", text: "撮影の集計秒数 \(s.sampledSeconds)、観測可能 \(s.observableSeconds)、未計測 \(s.missingSeconds)。未計測を無反応と判断しないでください。"),
+            PracticeFact(id: key + ".nod", kind: "camera", text: "うなずき候補のある秒数: \(s.observableSeconds > 0 ? String(s.nodCandidateSeconds) : "未計測")。人数や動作の回数、理解度・集中度ではありません。"),
+            PracticeFact(id: key + ".gaze", kind: "camera", text: "最後に取得した視線方向の推定: \(s.gazeTarget ?? "未計測")。較正済み: \(s.calibrated.joined(separator: ", "))。取得品質: \(s.currentQuality)。\(s.warning)")
+        ]
+    }
+}

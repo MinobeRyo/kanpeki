@@ -37,3 +37,5 @@
 `apps/SlidePacer` の資料取り込み・時間配分を引き継ぎ、分析をChatGPTのMCP接続へ切り替えています。ローカルLLMの起動は不要になる構成です。統合・検証状況はIssue #33およびdocs/MCP_INTEGRATION.mdに記録します。
 
 音声取得・解析の初版は [AudioCapture](experiments/AudioCapture/README.md) で単体検証できます。[移植範囲と本体への統合点](docs/AUDIO_CAPTURE.md)・[進捗と残作業（Issue #12）](https://github.com/MinobeRyo/kanpeki/issues/12) を参照。本体iPhoneの未接続ホーム「音声を試す」から録音・分析を検証できます。発表セッションとの統合と実機検証は未完了です。
+
+発表終了後は、音声認識結果・カメラ集計値・資料・時間をまとめて既存ChatGPT MCPへ渡し、根拠付きの振り返りをMac/iPhoneで確認できます。使い方・取得条件・未検証範囲は [MCP連携](docs/MCP_INTEGRATION.md) を参照してください。文字起こしはMacで継続し、追加課金APIは使用しません。

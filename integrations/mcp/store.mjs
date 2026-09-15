@@ -19,6 +19,45 @@ export class ExchangeStore {
     await writeFile(temporary, JSON.stringify(data), {mode:0o600});
     await rename(temporary, join(this.directory, name));
   }
+  async practiceRequest() {
+    const value = await this.read('practice-request.json');
+    const lease = await this.read('practice-lease.json');
+    if (value.schemaVersion !== 1 || !Array.isArray(value.facts) || !value.facts.length || value.facts.length > 4096 ||
+        new Set(value.facts.map(f => f.id)).size !== value.facts.length ||
+        value.facts.some(f => typeof f.id !== 'string' || !f.id || typeof f.text !== 'string' || !f.text)) throw Error('Invalid practice request');
+    if (!sameID(lease.requestID, value.requestID) || !['pending','completed'].includes(lease.status) ||
+        !Number.isFinite(lease.updatedAt) || this.now()/1000-lease.updatedAt > 15 || lease.updatedAt-this.now()/1000 > 5) throw Error('Practice request cancelled, stale or offline');
+    return value;
+  }
+  async practiceStatus() {
+    const request = await this.practiceRequest();
+    try {
+      const feedback = await this.read('practice-feedback.json');
+      if (sameID(feedback.requestID, request.requestID)) return feedback;
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    return {requestID:request.requestID, status:'pending', applied:false};
+  }
+  submitPractice(result) {
+    const next = this.submissions.then(() => this.submitPracticeOnce(result));
+    this.submissions = next.catch(() => {});
+    return next;
+  }
+  async submitPracticeOnce(result) {
+    const request = await this.practiceRequest();
+    validatePracticeResult(request, result);
+    result = {...result, requestID:request.requestID, presentationID:request.presentationID};
+    const digest = createHash('sha256').update(JSON.stringify(result)).digest('hex');
+    try {
+      const existing = await this.read('practice-result.json');
+      if (sameID(existing.requestID, request.requestID)) {
+        if (existing.digest !== digest) throw Error('A different practice result already exists');
+        return {accepted:true, applied:false, requestID:request.requestID, duplicate:true};
+      }
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (JSON.stringify(await this.practiceRequest()) !== JSON.stringify(request)) throw Error('Practice evidence changed during submission');
+    await this.write('practice-result.json', {...result, digest, submittedAt:this.now()/1000});
+    return {accepted:true, applied:false, requestID:request.requestID, duplicate:false};
+  }
   async request() {
     const value = await this.read('analysis-request.json');
     if (value.schemaVersion !== 1 || value.status !== 'pending' || !Array.isArray(value.pages) || !value.pages.length) throw Error('No pending analysis request');
@@ -78,4 +117,17 @@ export function validateResult(request, result) {
     if(new Set(ids).size!==ids.length||ids.some(id=>!valid.has(id))) throw Error(`Unknown or duplicate source ID on page ${page.slideIndex}`);
     if(source.comparisonIDs?.length && s.coreIDs.filter(id=>source.comparisonIDs.includes(id)).length<2) throw Error(`Keep two comparison rows on page ${page.slideIndex}`);
   }
+}
+
+function sameID(a,b) { return typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase(); }
+export function validatePracticeResult(request, result) {
+  if (!sameID(result.requestID,request.requestID) || !sameID(result.presentationID,request.presentationID)) throw Error('Practice request or presentation ID changed');
+  const ids = new Set(request.facts.map(f=>f.id));
+  if (!Array.isArray(result.items) || result.items.length < 1 || result.items.length > 8) throw Error('Return 1 to 8 evidence-based items');
+  for (const item of result.items) {
+    if (!['strength','improvement','limitation'].includes(item.kind) || typeof item.text !== 'string' || !item.text.trim() ||
+        item.text.length > 1200 || !Array.isArray(item.evidenceIDs) || item.evidenceIDs.length < 1 || item.evidenceIDs.length > 8 ||
+        new Set(item.evidenceIDs).size !== item.evidenceIDs.length || item.evidenceIDs.some(id=>!ids.has(id)) || item.sources !== undefined) throw Error('Invalid or unknown practice evidence');
+  }
+  if (Buffer.byteLength(JSON.stringify(result)) > 60*1024) throw Error('Practice result exceeds size limit');
 }
