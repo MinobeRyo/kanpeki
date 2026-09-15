@@ -15,7 +15,7 @@ struct AudioCaptureView: View {
     @AppStorage("macAddress") private var address = "http://Mac名.local:8765"
     @State private var token = ""
     @State private var confirmDiscard = false
-    @State private var selectedFiller = 0
+    @State private var reviewRequest: AudioReviewRequest?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -35,7 +35,7 @@ struct AudioCaptureView: View {
                     recordingCard
                     if let message = model.notice { Label(message, systemImage: "info.circle").font(.footnote) }
                     if let error = model.error { Label(error, systemImage: "exclamationmark.triangle").font(.callout) }
-                    if let report = model.report { reportView(report) }
+                    if let report = model.report { reportView(report, contextID: model.reviewContextID) }
                     Text("音声は指定したMacで処理します。iPhoneの録音は破棄または次回起動時に削除。Macの結果は最長1時間保持します。")
                         .font(.caption).foregroundStyle(Brand.slate)
                 }
@@ -57,6 +57,11 @@ struct AudioCaptureView: View {
                 Button("破棄して準備に戻る", role: .destructive) { model.discard() }
                 Button("戻る", role: .cancel) { }
             } message: { Text("この録音の再送ができなくなります。Macに送信済みの結果は残ります。") }
+            .sheet(item: $reviewRequest) { request in
+                AudioReviewChaptersView(model: model, chapters: request.chapters,
+                                        contextID: request.contextID, fillersMeasured: request.fillersMeasured)
+            }
+            .onChange(of: model.reviewContextID) { _, _ in reviewRequest = nil }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background { model.stopForInterruption() }
             }
@@ -121,7 +126,7 @@ struct AudioCaptureView: View {
         }
     }
 
-    @ViewBuilder private func reportView(_ report: AudioReport) -> some View {
+    @ViewBuilder private func reportView(_ report: AudioReport, contextID: UUID) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("話し方の振り返り").font(.title2.bold())
             HStack(alignment: .top, spacing: 12) {
@@ -146,9 +151,15 @@ struct AudioCaptureView: View {
                 }
                 Text("小さい声や意図的な間も含まれます。失敗を示すものではありません。").font(.caption)
             }.card()
-            if let fillers = report.fillerCandidates, !fillers.isEmpty {
-                fillerChapters(fillers.sorted { $0.start < $1.start })
-            }
+            Button {
+                guard contextID == model.reviewContextID, model.phase == .complete else { return }
+                reviewRequest = AudioReviewRequest(chapters: AudioReviewChapter.make(from: report),
+                                                   contextID: contextID,
+                                                   fillersMeasured: report.fillerCandidates != nil)
+            } label: {
+                Label("気になる箇所を聞き直す", systemImage: "headphones")
+                    .frame(maxWidth: .infinity)
+            }.buttonStyle(PrimaryButton()).disabled(model.phase != .complete)
             if !report.slides.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("スライドごとの時間").font(.headline)
@@ -175,57 +186,6 @@ struct AudioCaptureView: View {
         }
     }
 
-    private func fillerChapters(_ fillers: [FillerCandidate]) -> some View {
-        let index = min(selectedFiller, fillers.count - 1)
-        let filler = fillers[index]
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("気になる箇所を聞き直す").font(.headline)
-                Spacer()
-                Text("\(index + 1) / \(fillers.count)").font(.caption.monospacedDigit())
-            }
-            if fillers.count > 1 {
-                Slider(value: Binding(get: { Double(index) }, set: {
-                    model.stopReview(); selectedFiller = Int($0.rounded())
-                }), in: 0...Double(fillers.count - 1), step: 1)
-                .accessibilityLabel("見直すフィラー候補")
-                .accessibilityValue("\(index + 1)番目、\(clock(filler.start))、\(filler.text)")
-            }
-            HStack(alignment: .top, spacing: 14) {
-                VStack(spacing: 6) {
-                    Image(systemName: "waveform").font(.title2)
-                    Text(clock(filler.start)).font(.callout.monospacedDigit().bold())
-                }.frame(width: 76, height: 76)
-                    .background(Brand.green, in: RoundedRectangle(cornerRadius: 12))
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("「\(filler.text)」").font(.title3.bold()).lineLimit(2)
-                    Text(filler.context).font(.subheadline).lineLimit(3)
-                    if let slide = filler.slide { Text("スライド \(slide)").font(.caption) }
-                }
-            }
-            HStack(spacing: 12) {
-                Button { model.stopReview(); selectedFiller = max(0, index - 1) } label: {
-                    Image(systemName: "backward.end.fill").frame(minWidth: 44, minHeight: 44)
-                }.disabled(index == 0).accessibilityLabel("前のフィラー候補")
-                Button {
-                    if model.isReviewPlaying { model.stopReview() }
-                    else { model.playReview(start: filler.start, end: filler.end) }
-                } label: {
-                    Label(model.isReviewPlaying ? "停止" : "この箇所を聞く",
-                          systemImage: model.isReviewPlaying ? "stop.fill" : "play.fill")
-                        .frame(maxWidth: .infinity)
-                }.buttonStyle(PrimaryButton()).disabled(!model.hasRecording || model.isBusy)
-                Button { model.stopReview(); selectedFiller = min(fillers.count - 1, index + 1) } label: {
-                    Image(systemName: "forward.end.fill").frame(minWidth: 44, minHeight: 44)
-                }.disabled(index == fillers.count - 1).accessibilityLabel("次のフィラー候補")
-            }
-            Text(model.hasRecording
-                 ? (model.isReviewPlaying ? "再生中 \(clock(model.reviewPosition))" : "前後2秒を含めて再生・フィラーは候補です")
-                 : "録音がないため再生できません")
-                .font(.caption)
-        }.card()
-    }
-
     private func metric(_ title: String, value: String, unit: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.caption)
@@ -236,6 +196,82 @@ struct AudioCaptureView: View {
 
     private func clock(_ seconds: Double) -> String {
         AudioTimeText.clock(seconds)
+    }
+}
+
+private struct AudioReviewRequest: Identifiable {
+    let id = UUID()
+    let chapters: [AudioReviewChapter]
+    let contextID: UUID
+    let fillersMeasured: Bool
+}
+
+private struct AudioReviewChaptersView: View {
+    @ObservedObject var model: RecorderModel
+    let chapters: [AudioReviewChapter]
+    let contextID: UUID
+    let fillersMeasured: Bool
+    @State private var selected = 0
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+
+    private var current: Bool { contextID == model.reviewContextID && model.phase == .complete }
+    private var chapter: AudioReviewChapter? {
+        guard current, chapters.indices.contains(selected) else { return nil }
+        return chapters[selected]
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    if let chapter {
+                        Text("\(selected + 1) / \(chapters.count) · \(chapter.label)").font(.headline)
+                        if chapters.count > 1 {
+                            Slider(value: Binding(get: { Double(selected) }, set: { value in
+                                guard value.isFinite, (0...Double(chapters.count - 1)).contains(value) else { return }
+                                model.stopReview(contextID: contextID)
+                                selected = Int(value.rounded())
+                            }), in: 0...Double(chapters.count - 1), step: 1)
+                            .accessibilityLabel("聞き直す箇所")
+                            .accessibilityValue("\(selected + 1)番目、\(chapter.label)、\(AudioTimeText.clock(chapter.start))")
+                        }
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("\(AudioTimeText.clock(chapter.start))–\(AudioTimeText.clock(chapter.end))",
+                                  systemImage: chapter.kind == .filler ? "waveform" : "speaker.wave.1")
+                                .font(.title3.monospacedDigit())
+                            Text(chapter.text).font(.title3.bold())
+                            Text(chapter.context).font(.subheadline)
+                            if let slide = chapter.slide { Text("スライド \(slide)").font(.caption) }
+                        }.card()
+                        Button {
+                            guard current else { return }
+                            if model.isReviewPlaying { model.stopReview(contextID: contextID) }
+                            else { model.playReview(start: chapter.start, end: chapter.end, contextID: contextID) }
+                        } label: {
+                            Label(model.isReviewPlaying ? "停止" : "この箇所を聞く",
+                                  systemImage: model.isReviewPlaying ? "stop.fill" : "play.fill")
+                                .frame(maxWidth: .infinity)
+                        }.buttonStyle(PrimaryButton()).disabled(!model.hasRecording || !current)
+                        Text(model.hasRecording
+                             ? (model.isReviewPlaying ? "再生中 \(AudioTimeText.clock(model.reviewPosition))" : "録音開始からの時刻・前後2秒を含めて再生")
+                             : "録音がないため再生できません").font(.caption)
+                        if !fillersMeasured { Text("フィラーは未計測です。低音量区間だけを表示しています。").font(.caption) }
+                        if let error = model.error { Label(error, systemImage: "exclamationmark.triangle").font(.footnote) }
+                    } else {
+                        Text(current ? (fillersMeasured ? "聞き直し候補はありません。" : "フィラーは未計測で、低音量の候補区間はありません。")
+                             : "録音・分析結果が変わりました。結果から開き直してください。")
+                    }
+                }.padding(24)
+            }
+            .background(Brand.green).foregroundStyle(Brand.slate).tint(Brand.slate)
+            .navigationTitle("聞き直す").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarLeading) { Button("戻る") { dismiss() } } }
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { model.stopReview(contextID: contextID) }
+            }
+        }
+        .onDisappear { model.stopReview(contextID: contextID) }
     }
 }
 
