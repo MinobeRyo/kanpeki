@@ -5,6 +5,7 @@ import Charts
 public struct AudioHostPanel: View {
     @ObservedObject var model: AudioHostModel
     @State private var confirmStop = false
+    @State private var showNotices = false
     private let ink = Color(red:92/255,green:102/255,blue:115/255)
     private let mint = Color(red:217/255,green:235/255,blue:213/255)
     private let paper = Color(red:249/255,green:255/255,blue:230/255)
@@ -12,7 +13,7 @@ public struct AudioHostPanel: View {
     public var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:22) {
-                Label("声から、次の一歩。",systemImage:"waveform").font(.title.bold())
+                Label("音声分析",systemImage:"waveform").font(.title.bold())
                 Text("iPhoneで録音した声を、このMacで振り返ります。")
                 if model.preparing {
                     ProgressView().frame(maxWidth:.infinity)
@@ -21,7 +22,7 @@ public struct AudioHostPanel: View {
                 } else if !model.modelReady {
                     VStack(alignment:.leading,spacing:16) {
                         Text("分析モデルを準備しますか？").font(.title2.bold())
-                        Text("初回のみ約142MBをダウンロードします。Whisper baseを使い、音声はMac内で処理します。")
+                        Text("初回約142MB。音声はMac内で分析します。")
                         Button("モデルを取得") { model.downloadModel() }.buttonStyle(.borderedProminent)
                         Button("取得済みのモデルを選ぶ") { model.chooseModel() }
                     }.padding(24).frame(maxWidth:.infinity,alignment:.leading).background(paper,in:RoundedRectangle(cornerRadius:20))
@@ -39,27 +40,37 @@ public struct AudioHostPanel: View {
                         ForEach(model.addresses,id:\.self) { address in
                             HStack {
                                 VStack(alignment:.leading) { Text("MacのURL").font(.caption); Text(address).font(.title3.monospaced()).textSelection(.enabled) }
-                                Spacer(); Button("URLをコピー") { copy(address) }
                             }
                         }
                         HStack {
                             VStack(alignment:.leading) { Text("接続コード").font(.caption); Text(model.code).font(.title3.monospaced()).textSelection(.enabled) }
-                            Spacer(); Button("コードをコピー") { copy(model.code) }
                         }
-                        Text("「接続を確認」→ 録音 →「Macで分析する・再取得」の順に操作してください。")
-                        Text("信頼できる同じWi-Fiで使ってください。音声のLAN通信はHTTPです。Macを終了すると受信も停止します。")
+                        Text("iPhoneで接続・録音後、「Macで分析する」。")
+                        Text("信頼できる同じWi-Fi内でHTTP接続します。")
                             .font(.caption).foregroundStyle(.secondary)
-                    }.padding(24).background(paper,in:RoundedRectangle(cornerRadius:20))
+                    }.padding(24).frame(maxWidth:.infinity,alignment:.leading).background(paper,in:RoundedRectangle(cornerRadius:20))
                     Label(model.status,systemImage:"waveform")
-                    Button("受信を停止して結果を削除") { confirmStop = true }
+                    Menu("接続の操作") {
+                        Button("接続情報をコピー") { copy((model.addresses + [model.code]).joined(separator: "\n")) }
+                        Button("使用ライブラリ") { showNotices = true }
+                        Button("受信を停止して結果を削除") { confirmStop = true }
+                    }
+
                 }
                 if let error = model.error { Label(error,systemImage:"exclamationmark.triangle").foregroundStyle(.red) }
                 if let report = model.report { result(report) }
-                DisclosureGroup("使用ライブラリ") {
-                    Text(notices).font(.caption).textSelection(.enabled)
+                if !model.receiving {
+                    Button("使用ライブラリ") { showNotices = true }
                 }
             }.padding(28).frame(maxWidth:.infinity,alignment:.leading)
         }.background(mint).foregroundStyle(ink).tint(ink)
+            .sheet(isPresented: $showNotices) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("使用ライブラリ").font(.title2.bold())
+                    ScrollView { Text(notices).font(.caption).textSelection(.enabled) }
+                    Button("閉じる") { showNotices = false }
+                }.padding(24).frame(width: 560, height: 500)
+            }
             .alert("受信を停止しますか？",isPresented:$confirmStop) {
                 Button("停止して削除",role:.destructive) { model.stop() }
                 Button("戻る",role:.cancel) {}
