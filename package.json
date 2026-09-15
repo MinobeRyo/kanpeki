@@ -1,0 +1,5 @@
+{
+  "name": "kanpeki-camera-tests",
+  "private": true,
+  "scripts": { "test": "node --test CameraTests/*.test.cjs" }
+}

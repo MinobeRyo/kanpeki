@@ -21,6 +21,7 @@ class ExportTests(unittest.TestCase):
             files=[p.relative_to(out).as_posix() for p in out.rglob('*') if p.is_file()]
             self.assertFalse(any(p.startswith(('Mac/','Phone/','Shared/','experiments/','.git/')) or p.endswith(('.p8','.p12','.swift','.pbxproj','.png')) for p in files))
             self.assertFalse((out/'Tests/run_tests.sh').exists())
+            self.assertFalse((out/'.github/workflows/camera.yml').exists())
             self.assertIn('specs/FEATURE_TEMPLATE.md',files)
             self.assertIn('example/fresh-app',(out/'scripts/team.py').read_text())
             self.assertNotIn('MinobeRyo/kanpeki',(out/'scripts/slack_release.py').read_text())

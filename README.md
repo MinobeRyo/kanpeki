@@ -25,3 +25,5 @@
 - [Mac：準備と翻訳](assets/design/device-size/mac-preparation.png)
 
 会場写真は提出物の案内として整理しました。既存アプリの移植と、最新デザインの実装は別の作業です。
+
+映像解析はMac/iPhoneのカメラ補助パネルに実装。[カメラ仕様](specs/CAMERA_ANALYSIS.md)と[開発・検証手順](docs/CAMERA_DEVELOPMENT.md)を参照。

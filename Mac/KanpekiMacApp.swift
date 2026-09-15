@@ -1,4 +1,5 @@
 import SwiftUI
+import KanpekiCamera
 
 @main struct KanpekiMacApp: App {
     @StateObject private var model = MacModel()
@@ -13,6 +14,8 @@ struct MacScreen: View {
     @ObservedObject var capture: WindowCapture
     @ObservedObject var link: PeerLink
     @State private var showAllWindows = false
+    @StateObject private var camera = CameraController()
+    @State private var showCamera = false
     private let accent = Color(red: 0.20, green: 0.35, blue: 0.82)
 
     var body: some View {
@@ -61,6 +64,10 @@ struct MacScreen: View {
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(5)
                     }
                     VStack(alignment: .leading, spacing: 9) {
+                        Button { showCamera = true } label: { Label("カメラ分析", systemImage: "video") }
+                        if camera.phase == .running {
+                            Text("\(camera.subject.title) · \(camera.summary.currentQuality)").font(.caption)
+                        }
                         Text("切替記録 · \(model.events.count)件").font(.headline)
                         HStack {
                             Button("JSONを書き出す") { model.exportLog() }.disabled(model.events.isEmpty)
@@ -115,6 +122,13 @@ struct MacScreen: View {
                 Text(capture.message).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
             }.padding(24).background(Color(nsColor: .underPageBackgroundColor))
         }.frame(minWidth: 950, minHeight: 700).tint(accent)
+        .sheet(isPresented: $showCamera) {
+            VStack {
+                HStack { Spacer(); Button("発表画面に戻る") { showCamera = false } }.padding()
+                CameraPanel(controller: camera, onContinueWithoutAnalysis: { showCamera = false })
+            }.frame(width: 560, height: 650)
+        }
+        .onDisappear { camera.stop() }
         .alert("iPhoneからの接続", isPresented: Binding(get: { link.invitationName != nil }, set: { if !$0 { link.respondToInvitation(accept: false) } })) {
             Button("許可") { link.respondToInvitation(accept: true) }
             Button("拒否", role: .cancel) { link.respondToInvitation(accept: false) }

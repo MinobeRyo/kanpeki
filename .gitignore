@@ -2,6 +2,7 @@
 Build/
 DerivedData/
 .build/
+.swiftpm/
 .worktrees/
 *.xcarchive/
 *.ipa

@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import Combine
+import KanpekiCamera
 
 @MainActor final class PhoneModel: ObservableObject {
     let link = PeerLink(isHost: false)
@@ -65,6 +66,9 @@ import Combine
 struct PhoneScreen: View {
     @ObservedObject var model: PhoneModel
     @ObservedObject var link: PeerLink
+    @StateObject private var camera = CameraController()
+    @State private var showCamera = false
+    @Environment(\.scenePhase) private var cameraScenePhase
     private let accent = Color(red: 0.20, green: 0.35, blue: 0.82)
     var body: some View {
         NavigationStack {
@@ -128,11 +132,29 @@ struct PhoneScreen: View {
                         Text(model.state.notes.isEmpty ? "原稿はMacで読み込んだpptxから同期されます。" : model.state.notes)
                             .font(.body).lineSpacing(6).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
                     }.padding(20).background(.background, in: RoundedRectangle(cornerRadius: 18))
-                    Text("この試作は画面共有・スライド操作・原稿同期に対応しています。録音・カメラ・翻訳はまだ含みません。").font(.caption).foregroundStyle(.secondary)
+                    if camera.phase == .running {
+                        Label("カメラ：\(camera.subject.title) · \(camera.summary.currentQuality)", systemImage: "video")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }.padding(20)
             }.background(Color(uiColor: .systemGroupedBackground))
                 .navigationTitle("カンペき")
-                .toolbar { if link.connectedName != nil { Button("切断") { model.stop() } } }
+                .toolbar {
+                    Button { showCamera = true } label: { Image(systemName: "video") }.accessibilityLabel("カメラ分析")
+                    if link.connectedName != nil { Button("切断") { model.stop() } }
+                }
         }.tint(accent)
+        .sheet(isPresented: $showCamera) {
+            VStack {
+                HStack { Spacer(); Button("発表画面に戻る") { showCamera = false } }.padding()
+                CameraPanel(controller: camera, onContinueWithoutAnalysis: { showCamera = false })
+            }
+        }
+        .onChange(of: cameraScenePhase) { _, phase in
+            if (phase != .active && camera.phase == .running) || (phase == .background && camera.phase == .preparing) {
+                camera.stop(interrupted: true)
+            }
+        }
+        .onDisappear { camera.stop() }
     }
 }

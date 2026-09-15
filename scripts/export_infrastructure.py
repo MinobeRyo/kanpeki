@@ -62,6 +62,7 @@ def export(config, destination):
     # The exporter itself and application fixture tests are not part of the new product.
     paths.discard('scripts/export_infrastructure.py')
     paths.discard('Tests/test_export_infrastructure.py')
+    paths.discard('.github/workflows/camera.yml')  # Product-specific tests are not exported.
     files = {}
     for rel in sorted(paths):
         source = ROOT / rel
